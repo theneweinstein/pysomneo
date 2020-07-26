@@ -15,6 +15,7 @@ class Somneo(object):
     def __init__(self, host = None):
         """Initialize."""
         urllib3.disable_warnings()
+        self.host = host
         self._base_url = 'https://' + host + '/di/v1/products/1/'
         self._session = requests.Session()
 
@@ -22,10 +23,10 @@ class Somneo(object):
         self.sensor_data = None
         self.alarm_data = dict()
         
-    def get_device_info(self, host):
+    def get_device_info(self):
         """ Get Device information """
         try:
-            response = self._session.request('GET','https://' + host + '/upnp/description.xml', verify=False, timeout=20)
+            response = self._session.request('GET','https://' + self.host + '/upnp/description.xml', verify=False, timeout=20)
         except requests.Timeout:
             _LOGGER.error('Connection to Somneo timed out.')
         except requests.RequestException:

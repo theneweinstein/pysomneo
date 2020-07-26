@@ -34,12 +34,13 @@ class Somneo(object):
         
         root = ET.fromstring(response.content)
 
-        manufacturer = root[1][2].text
-        model = root[1][3].text
-        modelnumber = root[1][4].text
-        serial = root[1][6].text
+        device_info = dict()
+        device_info['manufacturer'] = root[1][2].text
+        device_info['model'] = root[1][3].text
+        device_info['modelnumber'] = root[1][4].text
+        device_info['serial'] = root[1][6].text
 
-        return manufacturer, model, modelnumber, serial
+        return device_info
 
     def _internal_call(self, method, url, headers, payload):
         """Call to the API."""

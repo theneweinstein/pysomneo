@@ -19,18 +19,10 @@ class Somneo(object):
         self._session = requests.Session()
         self._get_device_info(host)
 
-        self.manufacturer = None
-        self.model = None
-        self.modelnumber = None
-        self.serial = None
-        self._get_device_info(host)
-
         self.light_data = None
         self.sensor_data = None
         self.alarm_data = dict()
         
-        self.update()
-
     def _get_device_info(self, host):
         """ Get Device information """
         try:

@@ -4,7 +4,7 @@ setup(
     name = 'pysomneo',
     packages = ['pysomneo'],
     install_requires=['requests>=2.24.0','urllib3==1.25.10'],
-    version = '0.1.6',
+    version = '0.1.7',
     description = 'A library to communicate with the API of Philips Somneo.',
     author='Ruud van der Horst',
     author_email='ik@ruudvdhorst.nl',

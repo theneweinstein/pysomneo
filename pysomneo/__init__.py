@@ -118,6 +118,14 @@ class Somneo(object):
         """Return the status of the night light."""
         return self.light_data['ngtlt']
 
+    def alarms(self):
+        """Return the list of alarms."""
+        alarms = dict()
+        for alarm in list(self.alarm_data):
+            alarms[alarm] = self.alarm_data[alarm]['enabled']
+            
+        return alarms
+
     def alarm_settings(self, alarm):
         """Return the time and days alarm is set."""
         alarm_time = self.alarm_data[alarm]['time'].isoformat()

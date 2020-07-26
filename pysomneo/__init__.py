@@ -123,7 +123,7 @@ class Somneo(object):
         alarms = dict()
         for alarm in list(self.alarm_data):
             alarms[alarm] = self.alarm_data[alarm]['enabled']
-            
+
         return alarms
 
     def alarm_settings(self, alarm):
@@ -184,7 +184,10 @@ class Somneo(object):
                         new_next_alarm = alarm_time_full
                 else:
                     for d in range(0,7):
-                        if day_today + d in alarm_days:
+                        test_day = day_today + d
+                        if test_day > 7:
+                            test_day -= 7
+                        if test_day in alarm_days:
                             alarm_time_full = datetime.datetime.combine(nu_dag, alarm_time) + datetime.timedelta(days=d)
                             if alarm_time_full > nu_tijd:
                                 new_next_alarm = alarm_time_full

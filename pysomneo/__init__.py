@@ -17,13 +17,12 @@ class Somneo(object):
         urllib3.disable_warnings()
         self._base_url = 'https://' + host + '/di/v1/products/1/'
         self._session = requests.Session()
-        self._get_device_info(host)
 
         self.light_data = None
         self.sensor_data = None
         self.alarm_data = dict()
         
-    def _get_device_info(self, host):
+    def get_device_info(self, host):
         """ Get Device information """
         try:
             response = self._session.request('GET','https://' + host + '/upnp/description.xml', verify=False, timeout=20)
@@ -34,10 +33,12 @@ class Somneo(object):
         
         root = ET.fromstring(response.content)
 
-        self.manufacturer = root[1][2].text
-        self.model = root[1][3].text
-        self.modelnumber = root[1][4].text
-        self.serial = root[1][6].text
+        manufacturer = root[1][2].text
+        model = root[1][3].text
+        modelnumber = root[1][4].text
+        serial = root[1][6].text
+
+        return manufacturer, model, modelnumber, serial
 
     def _internal_call(self, method, url, headers, payload):
         """Call to the API."""

@@ -41,7 +41,7 @@ class Somneo(object):
         device_info['model'] = root['root']['device']['modelName']
         device_info['modelNumber'] = root['root']['device']['modelNumber']
         device_info['friendlyName'] = root['root']['device']['friendlyName']
-        device_info['cppId'] = root['root']['device']['cppId']
+        device_info['serial'] = root['root']['device']['cppId']
         device_info['udn'] = root['root']['device']['UDN']
 
         return device_info
@@ -94,6 +94,12 @@ class Somneo(object):
         payload['onoff'] = False
         payload['ngtlt'] = state
         self._put('wulgt', payload = payload)
+
+    def toggle_sunset(self, state):
+        """ Toggle the sunset mode on or off """
+        payload = self.sunset_data
+        payload['onoff'] = False
+        self._put('wudsk', payload = payload)
 
     def update(self):
         """Get the latest update from Somneo."""

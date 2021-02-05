@@ -1,15 +1,15 @@
 import requests
 import urllib3
 import json
-import xml.etree.ElementTree as ET
+import xmltodict
 import logging
 import datetime
 
 _LOGGER = logging.getLogger('pysomneo')
 
 class Somneo(object):
-    """ 
-    Class represents the Somneo wake-up light.
+    """
+    Class represents the SmartSleep Wake-Up Light.
     """
 
     def __init__(self, host = None):
@@ -22,23 +22,27 @@ class Somneo(object):
         self.light_data = None
         self.sensor_data = None
         self.alarm_data = dict()
-        
+
     def get_device_info(self):
         """ Get Device information """
         try:
             response = self._session.request('GET','https://' + self.host + '/upnp/description.xml', verify=False, timeout=20)
         except requests.Timeout:
-            _LOGGER.error('Connection to Somneo timed out.')
+            _LOGGER.error('Connection to SmartSleep timed out.')
         except requests.RequestException:
-            _LOGGER.error('Error connecting to Somneo.')
-        
-        root = ET.fromstring(response.content)
+            _LOGGER.error('Error connecting to SmartSleep.')
 
+        """ Convert description.xml response to dict """
+        root = xmltodict.parse(response.content)
+
+        """ Extract the device node and parse """
         device_info = dict()
-        device_info['manufacturer'] = root[1][2].text
-        device_info['model'] = root[1][3].text
-        device_info['modelnumber'] = root[1][4].text
-        device_info['serial'] = root[1][6].text
+        device_info['manufacturer'] = root['root']['device']['manufacturer']
+        device_info['model'] = root['root']['device']['modelName']
+        device_info['modelNumber'] = root['root']['device']['modelNumber']
+        device_info['friendlyName'] = root['root']['device']['friendlyName']
+        device_info['cppId'] = root['root']['device']['cppId']
+        device_info['udn'] = root['root']['device']['UDN']
 
         return device_info
 
@@ -56,9 +60,9 @@ class Somneo(object):
         try:
             r = self._session.request(method, url, verify=False, timeout=20, **args)
         except requests.Timeout:
-            _LOGGER.error('Connection to Somneo timed out.')
+            _LOGGER.error('Connection to SmartSleep timed out.')
         except requests.RequestException:
-            _LOGGER.error('Error connecting to Somneo.')
+            _LOGGER.error('Error connecting to SmartSleep.')
         else:
             if r.status_code == 422:
                 _LOGGER.error('Invalid URL.')
@@ -97,9 +101,12 @@ class Somneo(object):
         # Get light information
         self.light_data = self._get('wulgt')
 
+        # Get sunset (dusk) information:
+        self.sunset_data = self._get('wudsk')
+
         # Get sensor data
         self.sensor_data = self._get('wusrd')
-        
+
         # Get alarm data
         enabled_alarms = self._get('wualm/aenvs')
         time_alarms = self._get('wualm/aalms')
@@ -118,6 +125,10 @@ class Somneo(object):
         """Return the status of the night light."""
         return self.light_data['ngtlt']
 
+    def sunset_status(self):
+        """Return the status of sunset (dusk) mode."""
+        return self.sunset_data['onoff']
+
     def alarms(self):
         """Return the list of alarms."""
         alarms = dict()
@@ -129,7 +140,7 @@ class Somneo(object):
     def alarm_settings(self, alarm):
         """Return the time and days alarm is set."""
         alarm_time = self.alarm_data[alarm]['time'].isoformat()
-        
+
         alarm_days = []
         days_int = self.alarm_data[alarm]['days']
         if days_int & 2:
@@ -175,7 +186,7 @@ class Somneo(object):
                     alarm_days.append(7)
 
                 day_today = nu_tijd.isoweekday()
-                
+
                 if not alarm_days:
                     alarm_time_full = datetime.datetime.combine(nu_dag, alarm_time)
                     if alarm_time_full > nu_tijd:
@@ -191,8 +202,8 @@ class Somneo(object):
                             alarm_time_full = datetime.datetime.combine(nu_dag, alarm_time) + datetime.timedelta(days=d)
                             if alarm_time_full > nu_tijd:
                                 new_next_alarm = alarm_time_full
-                                break                
-                    
+                                break
+
                 if next_alarm:
                     if new_next_alarm < next_alarm:
                         next_alarm = new_next_alarm
@@ -205,18 +216,17 @@ class Somneo(object):
             return None
 
     def temperature(self):
-        """Return the temperature."""
+        """Return the current room temperature."""
         return self.sensor_data['mstmp']
 
     def humidity(self):
-        """Return the temperature."""
+        """Return the current room humidity."""
         return self.sensor_data['msrhu']
 
     def luminance(self):
-        """Return the temperature."""
+        """Return the current room luminance."""
         return self.sensor_data['mslux']
 
     def noise(self):
-        """Return the temperature."""
+        """Return the current room noise level."""
         return self.sensor_data['mssnd']
-

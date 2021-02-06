@@ -22,6 +22,7 @@ class Somneo(object):
         self.light_data = None
         self.sensor_data = None
         self.sunset_data = None
+        self.sunset_timer_data = None
         self.alarm_data = dict()
 
     def get_device_info(self):
@@ -113,6 +114,9 @@ class Somneo(object):
         # Get sunset (dusk) information:
         self.sunset_data = self._get('wudsk')
 
+        # Get sunset current timer information:
+        self.sunset_timer_data = self._get('wutmr')
+
         # Get sensor data
         self.sensor_data = self._get('wusrd')
 
@@ -137,6 +141,10 @@ class Somneo(object):
     def sunset_status(self):
         """Return the status of sunset (dusk) mode."""
         return self.sunset_data['onoff'], int(int(self.sunset_data['curve'])/25*255)
+
+    def sunset_timer_status(self):
+        """Return the current sunset timer status."""
+        return int(self.sunset_timer_data['dskmn']), int(self.sunset_timer_data['dsksc'])
 
     def alarms(self):
         """Return the list of alarms."""

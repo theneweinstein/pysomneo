@@ -21,6 +21,7 @@ class Somneo(object):
 
         self.light_data = None
         self.sensor_data = None
+        self.sunset_data = None
         self.alarm_data = dict()
 
     def get_device_info(self):
@@ -95,10 +96,12 @@ class Somneo(object):
         payload['ngtlt'] = state
         self._put('wulgt', payload = payload)
 
-    def toggle_sunset(self, state):
+    def toggle_sunset(self, state, brightness = None):
         """ Toggle the sunset mode on or off """
         payload = self.sunset_data
         payload['onoff'] = False
+        if brightness:
+            payload['curve'] = int(brightness/255 * 25)
         self._put('wudsk', payload = payload)
 
     def update(self):

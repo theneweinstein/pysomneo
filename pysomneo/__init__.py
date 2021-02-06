@@ -142,10 +142,6 @@ class Somneo(object):
         """Return the status of sunset (dusk) mode."""
         return self.sunset_data['onoff'], int(int(self.sunset_data['curve'])/25*255)
 
-    def sunset_timer_status(self):
-        """Return the current sunset timer status."""
-        return int(self.sunset_timer_data['dskmn']), int(self.sunset_timer_data['dsksc'])
-
     def alarms(self):
         """Return the list of alarms."""
         alarms = dict()
@@ -232,9 +228,9 @@ class Somneo(object):
         else:
             return None
 
-    def sunset(self):
-        """Return the current sunset mode status (last start time, time remaining)."""
-        return self.sunset_timer_data['wutmr']
+    def sunset_timer_status(self):
+        """Return the current sunset timer status (minutes:seconds remaining)."""
+        return int(self.sunset_timer_data['dskmn']), int(self.sunset_timer_data['dsksc'])
 
     def temperature(self):
         """Return the current room temperature."""

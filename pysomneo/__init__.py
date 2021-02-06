@@ -99,7 +99,7 @@ class Somneo(object):
     def toggle_sunset(self, state, brightness = None):
         """ Toggle the sunset mode on or off """
         payload = self.sunset_data
-        payload['onoff'] = False
+        payload['onoff'] = state
         if brightness:
             payload['curve'] = int(brightness/255 * 25)
         self._put('wudsk', payload = payload)
@@ -223,6 +223,10 @@ class Somneo(object):
             return next_alarm.isoformat()
         else:
             return None
+
+    def sunset(self):
+        """Return the current sunset mode status (last start time, time remaining)."""
+        return self.sensor_data['wutmr']
 
     def temperature(self):
         """Return the current room temperature."""

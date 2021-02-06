@@ -136,7 +136,7 @@ class Somneo(object):
 
     def sunset_status(self):
         """Return the status of sunset (dusk) mode."""
-        return self.sunset_data['onoff']
+        return self.sunset_data['onoff'], int(int(self.light_data['curve'])/25*255)
 
     def alarms(self):
         """Return the list of alarms."""

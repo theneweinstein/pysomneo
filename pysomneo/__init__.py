@@ -234,7 +234,7 @@ class Somneo(object):
 
     def sunset(self):
         """Return the current sunset mode status (last start time, time remaining)."""
-        return self.sensor_data['wutmr']
+        return self.sunset_timer_data['wutmr']
 
     def temperature(self):
         """Return the current room temperature."""

@@ -23,6 +23,8 @@ class Somneo(object):
         self.sensor_data = None
         self.sunset_data = None
         self.sunset_timer_data = None
+        self.radio_data = None
+        self.radio_presets_data = None
         self.alarm_data = dict()
 
     def get_device_info(self):
@@ -97,6 +99,13 @@ class Somneo(object):
         payload['ngtlt'] = state
         self._put('wulgt', payload = payload)
 
+    def toggle_radio_switch(self, state):
+        """ Toggle the FM radio switch on or off """
+        payload = self.radio_data
+        payload['onoff'] = False
+        payload['snddv'] = state
+        self._put('wuply', payload = payload)
+
     def toggle_sunset(self, state, brightness = None):
         """ Toggle the sunset mode on or off """
         payload = self.sunset_data
@@ -120,6 +129,13 @@ class Somneo(object):
         # Get sensor data
         self.sensor_data = self._get('wusrd')
 
+        # Get FM radio data
+        self.radio_data = self._get('wuply')
+
+        # Get FM radio presets data
+        # TODO!
+        self.radio_presets_data = self._get('wufmp')
+
         # Get alarm data
         enabled_alarms = self._get('wualm/aenvs')
         time_alarms = self._get('wualm/aalms')
@@ -141,6 +157,11 @@ class Somneo(object):
     def sunset_status(self):
         """Return the status of sunset (dusk) mode."""
         return self.sunset_data['onoff'], int(int(self.sunset_data['curve'])/25*255)
+
+    def radio_status(self):
+        """Return the status of the FM radio."""
+        """ raw sample: {"onoff":true,"tempy":false,"sdvol":2,"sndss":0,"snddv":"fmr","sndch":"2"} """
+        return self.radio_data['onoff'], self.radio_data['snddv'], int(self.radio_data['sdvol']), int(self.radio_data['sndch']), 
 
     def alarms(self):
         """Return the list of alarms."""

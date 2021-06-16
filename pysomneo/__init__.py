@@ -29,8 +29,10 @@ class Somneo(object):
             response = self._session.request('GET','https://' + self.host + '/upnp/description.xml', verify=False, timeout=20)
         except requests.Timeout:
             _LOGGER.error('Connection to Somneo timed out.')
+            raise
         except requests.RequestException:
             _LOGGER.error('Error connecting to Somneo.')
+            raise
         
         root = ET.fromstring(response.content)
 
@@ -57,8 +59,10 @@ class Somneo(object):
             r = self._session.request(method, url, verify=False, timeout=20, **args)
         except requests.Timeout:
             _LOGGER.error('Connection to Somneo timed out.')
+            raise
         except requests.RequestException:
             _LOGGER.error('Error connecting to Somneo.')
+            raise
         else:
             if r.status_code == 422:
                 _LOGGER.error('Invalid URL.')

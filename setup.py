@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name = 'pysomneo',
     packages = ['pysomneo'],
-    install_requires=['requests>=2.24.0','urllib3==1.25.10'],
+    install_requires=['requests>=2.24.0','urllib3==1.26.5'],
     version = '0.1.12',
     description = 'A library to communicate with the API of Philips Somneo.',
     author='Ruud van der Horst',

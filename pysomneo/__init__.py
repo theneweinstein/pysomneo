@@ -22,7 +22,8 @@ class Somneo(object):
         self.light_data = None
         self.sensor_data = None
         self.alarm_data = dict()
-        
+        self.alarm_toggle_data = dict()
+
     def get_device_info(self):
         """ Get Device information """
         try:
@@ -33,7 +34,7 @@ class Somneo(object):
         except requests.RequestException:
             _LOGGER.error('Error connecting to Somneo.')
             raise
-        
+
         root = ET.fromstring(response.content)
 
         device_info = dict()
@@ -88,6 +89,15 @@ class Somneo(object):
             payload['ltlvl'] = int(brightness/255 * 25)
         self._put('wulgt', payload = payload)
 
+    def toggle_alarm(self, status, alarm):
+        """ Toggle the light on or off """
+        self.alarm_data[alarm]['enabled'] = status
+        payload = self.alarm_toggle_data
+        payload['prfnr'] = self.alarm_data[alarm]['position']
+        payload['prfvs'] = True
+        payload['prfen'] = status
+        self._put('wualm/prfwu', payload = payload)
+
     def toggle_night_light(self, state):
         """ Toggle the light on or off """
         payload = self.light_data
@@ -103,13 +113,14 @@ class Somneo(object):
 
         # Get sensor data
         self.sensor_data = self._get('wusrd')
-        
+
         # Get alarm data
         enabled_alarms = self._get('wualm/aenvs')
         time_alarms = self._get('wualm/aalms')
         for alarm, enabled in enumerate(enabled_alarms['prfen']):
             alarm_name = 'alarm' + str(alarm)
             self.alarm_data[alarm_name] = dict()
+            self.alarm_data[alarm_name]['position'] = alarm + 1
             self.alarm_data[alarm_name]['enabled'] = bool(enabled)
             self.alarm_data[alarm_name]['time'] = datetime.time(int(time_alarms['almhr'][alarm]), int(time_alarms['almmn'][alarm]))
             self.alarm_data[alarm_name]['days'] = int(time_alarms['daynm'][alarm])
@@ -133,7 +144,7 @@ class Somneo(object):
     def alarm_settings(self, alarm):
         """Return the time and days alarm is set."""
         alarm_time = self.alarm_data[alarm]['time'].isoformat()
-        
+
         alarm_days = []
         days_int = self.alarm_data[alarm]['days']
         if days_int & 2:
@@ -179,7 +190,7 @@ class Somneo(object):
                     alarm_days.append(7)
 
                 day_today = nu_tijd.isoweekday()
-                
+
                 if not alarm_days:
                     alarm_time_full = datetime.datetime.combine(nu_dag, alarm_time)
                     if alarm_time_full > nu_tijd:
@@ -195,8 +206,8 @@ class Somneo(object):
                             alarm_time_full = datetime.datetime.combine(nu_dag, alarm_time) + datetime.timedelta(days=d)
                             if alarm_time_full > nu_tijd:
                                 new_next_alarm = alarm_time_full
-                                break                
-                    
+                                break
+
                 if next_alarm:
                     if new_next_alarm < next_alarm:
                         next_alarm = new_next_alarm

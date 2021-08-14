@@ -28,12 +28,13 @@ class Somneo(object):
         try:
             response = self._session.request('GET','https://' + self.host + '/upnp/description.xml', verify=False, timeout=20)
         except requests.Timeout:
-            _LOGGER.error('Connection to SmartSleep timed out.')
+            _LOGGER.error('Connection to Somneo timed out.')
+            raise
         except requests.RequestException:
-            _LOGGER.error('Error connecting to SmartSleep.')
+            _LOGGER.error('Error connecting to Somneo.')
+            raise
 
-        """ Convert description.xml response to dict """
-        root = xmltodict.parse(response.content)
+        root = ET.fromstring(response.content)
 
         """ Extract the device node and parse """
         device_info = dict()
@@ -60,9 +61,11 @@ class Somneo(object):
         try:
             r = self._session.request(method, url, verify=False, timeout=20, **args)
         except requests.Timeout:
-            _LOGGER.error('Connection to SmartSleep timed out.')
+            _LOGGER.error('Connection to Somneo timed out.')
+            raise
         except requests.RequestException:
-            _LOGGER.error('Error connecting to SmartSleep.')
+            _LOGGER.error('Error connecting to Somneo.')
+            raise
         else:
             if r.status_code == 422:
                 _LOGGER.error('Invalid URL.')

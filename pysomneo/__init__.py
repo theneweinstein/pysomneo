@@ -118,8 +118,10 @@ class Somneo(object):
         payload['curve'] = 20  # TODO set light level
         payload['durat'] = 30  # TODO set sunrise duration
         payload['daynm'] = days  # set days to repeat the alarm
-        # payload['snddv'] = "wus" # TODO set the wake_up sound
-        # payload['snztm'] = 0 # TODO set snooze time
+        payload['snddv'] = "wus" # TODO set the wake_up sound
+        payload['sndch'] = 1    # TODO set sound channel
+        payload['sndlv'] = 12   # TODO set sound level
+        payload['snztm'] = 0 # TODO set snooze time
         self._put('wualm/prfwu', payload=payload)
 
     def set_days_alarm(self, days, alarm):
@@ -130,6 +132,11 @@ class Somneo(object):
         days = (self.alarm_data[alarm]['days'] & WEEKEND_BINARY_MASK)
         if is_on:
             days = days + WORKDAYS_BINARY_MASK
+        _LOGGER.debug("Workday " + str(is_on) + " days =" + str(days))
+        self.set_days_alarm(days, alarm)
+
+    def set_everyday_alarm(self, is_on, alarm):
+        days = WORKDAYS_BINARY_MASK + WEEKEND_BINARY_MASK
         _LOGGER.debug("Workday " + str(is_on) + " days =" + str(days))
         self.set_days_alarm(days, alarm)
 
@@ -202,11 +209,19 @@ class Somneo(object):
 
     def is_workday(self, alarm):
         days_int = self.alarm_data[alarm]['days']
-        return (days_int & 62) == 62
+        return days_int == 62
 
     def is_weekend(self, alarm):
         days_int = self.alarm_data[alarm]['days']
-        return (days_int & 192) == 192
+        return days_int == 192
+
+    def is_everyday(self, alarm):
+        days_int = self.alarm_data[alarm]['days']
+        return days_int == 254
+
+    def is_tomorrow(self, alarm):
+        days_int = self.alarm_data[alarm]['days']
+        return days_int == 0
 
     def alarm_settings(self, alarm):
         """Return the time and days alarm is set."""

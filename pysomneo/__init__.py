@@ -118,33 +118,34 @@ class Somneo(object):
         payload['curve'] = 20  # TODO set light level
         payload['durat'] = 30  # TODO set sunrise duration
         payload['daynm'] = days  # set days to repeat the alarm
-        payload['snddv'] = "wus" # TODO set the wake_up sound
-        payload['sndch'] = 1    # TODO set sound channel
-        payload['sndlv'] = 12   # TODO set sound level
-        payload['snztm'] = 0 # TODO set snooze time
+        # payload['snddv'] = "wus" # TODO set the wake_up sound
+        # payload['sndch'] = 1    # TODO set sound channel
+        # payload['sndlv'] = 12   # TODO set sound level
+        # payload['snztm'] = 0 # TODO set snooze time
         self._put('wualm/prfwu', payload=payload)
 
     def set_days_alarm(self, days, alarm):
         self.set_alarm(int(self.alarm_data[alarm]['time'].hour),
                        int(self.alarm_data[alarm]['time'].minute), days, alarm)
 
-    def set_workdays_alarm(self, is_on, alarm):
-        days = (self.alarm_data[alarm]['days'] & WEEKEND_BINARY_MASK)
-        if is_on:
-            days = days + WORKDAYS_BINARY_MASK
-        _LOGGER.debug("Workday " + str(is_on) + " days =" + str(days))
+    def set_workdays_alarm(self, alarm):
+        days = WORKDAYS_BINARY_MASK
+        _LOGGER.debug("Workday " + " days =" + str(days))
         self.set_days_alarm(days, alarm)
 
-    def set_everyday_alarm(self, is_on, alarm):
+    def set_everyday_alarm(self, alarm):
         days = WORKDAYS_BINARY_MASK + WEEKEND_BINARY_MASK
-        _LOGGER.debug("Workday " + str(is_on) + " days =" + str(days))
+        _LOGGER.debug("Workday " + " days =" + str(days))
         self.set_days_alarm(days, alarm)
 
-    def set_weekend_alarm(self, is_on, alarm):
-        days = (self.alarm_data[alarm]['days'] & WORKDAYS_BINARY_MASK)
-        if is_on:
-            days = days + WEEKEND_BINARY_MASK
-        _LOGGER.debug("Weekend " + str(is_on) + " days =" + str(days))
+    def set_weekend_alarm(self, alarm):
+        days = WEEKEND_BINARY_MASK
+        _LOGGER.debug("Weekend " + " days =" + str(days))
+        self.set_days_alarm(days, alarm)
+    
+    def set_tomorrow_alarm(self, alarm):
+        days = 0
+        _LOGGER.debug("Tomorrow " + " days =" + str(days))
         self.set_days_alarm(days, alarm)
 
     def set_time_alarm(self, hour, minute, alarm):

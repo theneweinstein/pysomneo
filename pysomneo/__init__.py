@@ -11,6 +11,18 @@ _LOGGER = logging.getLogger('pysomneo')
 WORKDAYS_BINARY_MASK = 62
 WEEKEND_BINARY_MASK = 192
 
+LIGHT_CURVES = {'sunny day': 0, 'island red': 1,'nordic white': 2}
+SOUND_SOURCE = {'wake-up': 'wus', 'radio': 'fmr', 'off': 'off'}
+SOUND_CHANNEL = {'forest birds': '1', 
+                    'summer birds': '2',
+                    'buddha wakeup': '3',
+                    'morning alps': '4',
+                    'yoga harmony': '5',
+                    'nepal bowls': '6',
+                    'summer lake': '7',
+                    'ocean waves': '8',
+                    }
+
 class Somneo(object):
     """ 
     Class represents the Somneo wake-up light.
@@ -80,15 +92,14 @@ class Somneo(object):
                     raise Exception("Invalid URL.")
             break
 
-        if method == 'GET':
-            return r.json()
-        else:
-            return
+        return r.json()
 
     def _get(self, url, args=None, payload=None):
+        """Get request."""
         return self._internal_call('GET', url, None, payload)
 
     def _put(self, url, args=None, payload=None):
+        """Put request."""
         return self._internal_call('PUT', url, {"Content-Type": "application/json"}, payload)
 
     def toggle_light(self, state, brightness = None):
@@ -100,58 +111,126 @@ class Somneo(object):
             payload['ltlvl'] = int(brightness/255 * 25)
         self._put('wulgt', payload = payload)
 
-    def set_alarm(self, hour, minute, days, alarm):
-        _LOGGER.debug("set_time_alarm position " + str(self.alarm_data[alarm]['position'])
-                      + str(hour) + ":" + str(minute) + " days " + str(days))
+    def get_alarm_settings(self, alarm):
+        """ Get the alarm settings. """
+        # Get alarm position
+        alarm_pos = self.alarm_data[alarm]['position']
+
+        # Get current alarm settings
+        return self._put('wualm',payload={'prfnr':alarm_pos})
+
+    def set_alarm(self, alarm, hour, minute, days):
+        """ Set the time and day of an alarm. """
+
+        # Update alarm data       
         self.alarm_data[alarm]['time'] = datetime.time(int(hour), int(minute))
         self.alarm_data[alarm]['days'] = days
-        payload = dict()
-        payload['prfnr'] = self.alarm_data[alarm]['position']  # Alarm position
-        payload['prfen'] = self.alarm_data[alarm]['enabled']  # Alarm enabled / disabled
-        payload['prfvs'] = True  # Add/Remove alarm from alarm list
-        payload['almhr'] = int(hour)  # Alarm hour
-        payload['almmn'] = int(minute)  # Alarm Min
-        payload['pwrsz'] = 0  # TODO enable / disable PowerWake
-        payload['pszhr'] = 0  # TODO set power wake (hour)
-        payload['pszmn'] = 0  # TODO set power wake (min)
-        payload['ctype'] = 0  # TODO set the default sunrise ("Sunny day" if curve > 0 or "No light" if curve == 0)
-        payload['curve'] = 20  # TODO set light level
-        payload['durat'] = 30  # TODO set sunrise duration
-        payload['daynm'] = days  # set days to repeat the alarm
-        # payload['snddv'] = "wus" # TODO set the wake_up sound
-        # payload['sndch'] = 1    # TODO set sound channel
-        # payload['sndlv'] = 12   # TODO set sound level
-        # payload['snztm'] = 0 # TODO set snooze time
-        self._put('wualm/prfwu', payload=payload)
 
-    def set_days_alarm(self, days, alarm):
-        self.set_alarm(int(self.alarm_data[alarm]['time'].hour),
-                       int(self.alarm_data[alarm]['time'].minute), days, alarm)
+        # Adjust alarm settings
+        alarm_settings = dict()
+        alarm_settings['almhr'] = self.alarm_data[alarm]['position']    # Alarm number
+        alarm_settings['almhr'] = int(hour)                             # Alarm hour
+        alarm_settings['almmn'] = int(minute)                           # Alarm min
+        alarm_settings['daynm'] = days                                  # set days to repeat the alarm
+
+        # Send alarm settings
+        self._put('wualm/prfwu', payload=alarm_settings)
+
+    def set_time_alarm(self, alarm, hour, minute):
+        """ Set the time of an alarm. """
+        self.set_alarm(alarm, hour, minute, self.alarm_data[alarm]['days'])
+
+    def set_days_alarm(self, alarm, days):
+        """ Set the days of an alarm. """
+        self.set_alarm(alarm, int(self.alarm_data[alarm]['time'].hour),
+                       int(self.alarm_data[alarm]['time'].minute), days)
 
     def set_workdays_alarm(self, alarm):
-        days = WORKDAYS_BINARY_MASK
-        _LOGGER.debug("Workday " + " days =" + str(days))
-        self.set_days_alarm(days, alarm)
+        """ Set alarm on workday. """
+        self.set_days_alarm(alarm, WORKDAYS_BINARY_MASK)
 
     def set_everyday_alarm(self, alarm):
-        days = WORKDAYS_BINARY_MASK + WEEKEND_BINARY_MASK
-        _LOGGER.debug("Workday " + " days =" + str(days))
-        self.set_days_alarm(days, alarm)
+        """ Set alarm on everyday. """
+        self.set_days_alarm(alarm, WORKDAYS_BINARY_MASK + WEEKEND_BINARY_MASK)
 
     def set_weekend_alarm(self, alarm):
-        days = WEEKEND_BINARY_MASK
-        _LOGGER.debug("Weekend " + " days =" + str(days))
-        self.set_days_alarm(days, alarm)
+        """ Set alarm on weekends. """
+        self.set_days_alarm(alarm, WEEKEND_BINARY_MASK)
     
     def set_tomorrow_alarm(self, alarm):
-        days = 0
-        _LOGGER.debug("Tomorrow " + " days =" + str(days))
-        self.set_days_alarm(days, alarm)
+        """ Set alarm tomorrow. """
+        self.set_days_alarm(alarm, 0)
+    
+    def set_light_alarm(self, alarm, curve = 'sunny day', level = 20, duration = 30):
+        """Adjust the lightcurve of the wake-up light"""
+        alarm_settings = dict()
+        alarm_settings['prfnr'] = self.alarm_data[alarm]['position']    # Alarm number
+        alarm_settings['ctype'] = LIGHT_CURVES[curve]                   # Light curve type
+        alarm_settings['curve'] = level                                 # Light level (0 - 25, 0 is no light)
+        alarm_settings['durat'] = duration                              # Duration in minutes (5 - 40)
 
-    def set_time_alarm(self, hour, minute, alarm):
-        self.set_alarm(hour, minute, self.alarm_data[alarm]['days'], alarm)
+        # Send alarm settings
+        self._put('wualm/prfwu', payload=alarm_settings)
 
-    def toggle_alarm(self, status, alarm):
+    def set_sound_alarm(self, alarm, source = 'wake-up', channel = 'forest birds', level = 12):
+        """Adjust the alarm sound of the wake-up light"""
+        alarm_settings = dict()
+        alarm_settings['prfnr'] = self.alarm_data[alarm]['position']                            # Alarm number
+        alarm_settings['snddv'] = SOUND_SOURCE[source]                                          # Source (radio of wake-up)
+        alarm_settings['sndch'] = SOUND_CHANNEL[channel] if source == 'wake-up' else (' ' if source == 'off' else channel)    # Channel
+        alarm_settings['sndlv'] = level                                                         # Sound level (1 - 25)
+
+        # Send alarm settings
+        self._put('wualm/prfwu', payload=alarm_settings) 
+
+    def set_snooze_time(self, snooze_time = 9):
+        """Adjust the snooze time (minutes) of all alarms"""
+        self._put('wualm', payload={'snztm': snooze_time})
+
+    def set_powerwake(self, alarm, onoff = False, hour = 0, minute = 0):
+        """Set power wake"""
+        alarm_settings = dict()
+        alarm_settings['prfnr'] = self.alarm_data[alarm]['position']
+        alarm_settings['pwrsz'] = 1 if onoff else 0
+        alarm_settings['pszhr'] = int(hour)
+        alarm_settings['pszmn'] = int(minute)
+
+        # Send alarm settings
+        self._put('wualm/prfwu', payload=alarm_settings) 
+
+    def add_alarm(self, alarm):
+        """Add alarm to the list"""
+        alarm_settings = dict()
+        alarm_settings['prfnr'] = self.alarm_data[alarm]['position']
+        alarm_settings['prfvs'] = True  # Add alarm
+
+        # Send alarm settings
+        self._put('wualm/prfwu', payload=alarm_settings) 
+
+    def remove_alarm(self, alarm):
+        """Remove alarm from the list"""
+        # Set default settings
+        alarm_settings = dict()
+        alarm_settings['prfnr'] = self.alarm_data[alarm]['position']
+        alarm_settings['prfen'] = False  # Alarm  disabled
+        alarm_settings['prfvs'] = False  # Remove alarm from alarm list
+        alarm_settings['almhr'] = int(7)  # Alarm hour
+        alarm_settings['almmn'] = int(30)  # Alarm Min
+        alarm_settings['pwrsz'] = 0  # disable PowerWake
+        alarm_settings['pszhr'] = 0  # set power wake (hour)
+        alarm_settings['pszmn'] = 0  # set power wake (min)
+        alarm_settings['ctype'] = 0  # set the default sunrise ("Sunny day" if curve > 0 or "No light" if curve == 0) (0 sunyday, 1 island red, 2 nordic white)
+        alarm_settings['curve'] = 20  # set light level (0-25)
+        alarm_settings['durat'] = 30  # set sunrise duration (5-40)
+        alarm_settings['daynm'] = 254 # set days to repeat the alarm
+        alarm_settings['snddv'] = 'wus' # set the wake_up sound (fmr is radio)
+        alarm_settings['sndch'] = '1'    # set sound channel (should be a string)
+        alarm_settings['sndlv'] = 12   # set sound level
+
+        # Send alarm settings
+        self._put('wualm/prfwu', payload=alarm_settings) 
+
+    def toggle_alarm(self, alarm, status):
         """ Toggle the light on or off """
         self.alarm_data[alarm]['enabled'] = status
         payload = self.alarm_toggle_data

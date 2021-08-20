@@ -4,7 +4,6 @@ import json
 import xml.etree.ElementTree as ET
 import logging
 import datetime
-import asyncio
 
 _LOGGER = logging.getLogger('pysomneo')
 
@@ -38,9 +37,7 @@ class Somneo(object):
         self.light_data = None
         self.sensor_data = None
         self.alarm_data = dict()
-        self.alarm_toggle_data = dict()
-        self.alarm_time_data = dict()
-        self.set_time_task = None
+        self.snoozetime = None
 
     def get_device_info(self):
         """ Get Device information """
@@ -119,47 +116,40 @@ class Somneo(object):
         # Get current alarm settings
         return self._put('wualm',payload={'prfnr':alarm_pos})
 
-    def set_alarm(self, alarm, hour, minute, days):
+    def set_alarm(self, alarm, hour = None, minute = None, days = None):
         """ Set the time and day of an alarm. """
-
-        # Update alarm data       
-        self.alarm_data[alarm]['time'] = datetime.time(int(hour), int(minute))
-        self.alarm_data[alarm]['days'] = days
 
         # Adjust alarm settings
         alarm_settings = dict()
-        alarm_settings['almhr'] = self.alarm_data[alarm]['position']    # Alarm number
-        alarm_settings['almhr'] = int(hour)                             # Alarm hour
-        alarm_settings['almmn'] = int(minute)                           # Alarm min
-        alarm_settings['daynm'] = days                                  # set days to repeat the alarm
+        alarm_settings['prfnr'] = self.alarm_data[alarm]['position']    # Alarm number
+        if hour == None: 
+            alarm_settings['almhr'] = int(hour)                         # Alarm hour
+            self.alarm_data[alarm]['time'] = datetime.time(int(hour), int(self.alarm_data[alarm]['time'].minute))
+        if minute == None: 
+            alarm_settings['almmn'] = int(minute)                # Alarm min
+            self.alarm_data[alarm]['time'] = datetime.time(int(self.alarm_data[alarm]['time'].hour), int(minute))
+        if days == None: 
+            alarm_settings['daynm'] = int(days)                    # set days to repeat the alarm
+            self.alarm_data[alarm]['days'] = days
 
         # Send alarm settings
         self._put('wualm/prfwu', payload=alarm_settings)
 
-    def set_time_alarm(self, alarm, hour, minute):
-        """ Set the time of an alarm. """
-        self.set_alarm(alarm, hour, minute, self.alarm_data[alarm]['days'])
-
-    def set_days_alarm(self, alarm, days):
-        """ Set the days of an alarm. """
-        self.set_alarm(alarm, int(self.alarm_data[alarm]['time'].hour),
-                       int(self.alarm_data[alarm]['time'].minute), days)
-
-    def set_workdays_alarm(self, alarm):
+    def set_alarm_workdays(self, alarm):
         """ Set alarm on workday. """
-        self.set_days_alarm(alarm, WORKDAYS_BINARY_MASK)
+        self.set_alarm(alarm, days=WORKDAYS_BINARY_MASK)
 
-    def set_everyday_alarm(self, alarm):
+    def set_alarm_everyday(self, alarm):
         """ Set alarm on everyday. """
-        self.set_days_alarm(alarm, WORKDAYS_BINARY_MASK + WEEKEND_BINARY_MASK)
+        self.set_alarm(alarm, days=WORKDAYS_BINARY_MASK + WEEKEND_BINARY_MASK)
 
-    def set_weekend_alarm(self, alarm):
+    def set_alarm_weekend(self, alarm):
         """ Set alarm on weekends. """
-        self.set_days_alarm(alarm, WEEKEND_BINARY_MASK)
+        self.set_alarm(alarm, days=WEEKEND_BINARY_MASK)
     
-    def set_tomorrow_alarm(self, alarm):
+    def set_alarm_tomorrow(self, alarm):
         """ Set alarm tomorrow. """
-        self.set_days_alarm(alarm, 0)
+        self.set_alarm(alarm, days=0)
     
     def set_light_alarm(self, alarm, curve = 'sunny day', level = 20, duration = 30):
         """Adjust the lightcurve of the wake-up light"""
@@ -186,6 +176,11 @@ class Somneo(object):
     def set_snooze_time(self, snooze_time = 9):
         """Adjust the snooze time (minutes) of all alarms"""
         self._put('wualm', payload={'snztm': snooze_time})
+
+    def get_snooze_time(self):
+        """Get the snooze time (minutes) of all alarms"""
+        response = self._get('wualm')
+        return response['snztm']
 
     def set_powerwake(self, alarm, onoff = False, hour = 0, minute = 0):
         """Set power wake"""
@@ -233,7 +228,7 @@ class Somneo(object):
     def toggle_alarm(self, alarm, status):
         """ Toggle the light on or off """
         self.alarm_data[alarm]['enabled'] = status
-        payload = self.alarm_toggle_data
+        payload = dict()
         payload['prfnr'] = self.alarm_data[alarm]['position']
         payload['prfvs'] = True
         payload['prfen'] = status
@@ -258,6 +253,9 @@ class Somneo(object):
         # Get alarm data
         enabled_alarms = self._get('wualm/aenvs')
         time_alarms = self._get('wualm/aalms')
+
+        # Get snoozetime
+        self.snoozetime = self.get_snooze_time()
 
         for alarm, enabled in enumerate(enabled_alarms['prfen']):
             alarm_name = 'alarm' + str(alarm)

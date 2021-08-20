@@ -122,13 +122,13 @@ class Somneo(object):
         # Adjust alarm settings
         alarm_settings = dict()
         alarm_settings['prfnr'] = self.alarm_data[alarm]['position']    # Alarm number
-        if hour == None: 
+        if hour is not None: 
             alarm_settings['almhr'] = int(hour)                         # Alarm hour
             self.alarm_data[alarm]['time'] = datetime.time(int(hour), int(self.alarm_data[alarm]['time'].minute))
-        if minute == None: 
+        if minute is not None: 
             alarm_settings['almmn'] = int(minute)                # Alarm min
             self.alarm_data[alarm]['time'] = datetime.time(int(self.alarm_data[alarm]['time'].hour), int(minute))
-        if days == None: 
+        if days is not None: 
             alarm_settings['daynm'] = int(days)                    # set days to repeat the alarm
             self.alarm_data[alarm]['days'] = days
 

@@ -278,6 +278,9 @@ class Somneo(object):
         data['nightlight_is_on'] = self.night_light_status()
         data['alarms'] = self.alarms()
 
+        data['alarms_hour'] = dict()
+        data['alarms_minute'] = dict()
+        data['alarms_day'] = dict()
         for alarm in data['alarms']:
             attr = {}
             attr['time'], attr['days'] = self.alarm_settings(alarm)

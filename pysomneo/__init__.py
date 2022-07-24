@@ -266,6 +266,45 @@ class Somneo(object):
                                                                 int(time_alarms['almmn'][alarm]))
             self.alarm_data[alarm_name]['days'] = int(time_alarms['daynm'][alarm])
 
+    def fetch_data(self):
+        """Fetch the latest data from Somneo."""
+        
+        # Perform update
+        self.update()
+
+        # Store info in data structure compatible with home assistant coordinator.
+        data = dict()
+        data['light_is_on'], data['light_brightness'] = self.light_status()
+        data['nightlight_is_on'] = self.night_light_status()
+        data['alarms'] = self.alarms()
+
+        for alarm in data['alarms']:
+            attr = {}
+            attr['time'], attr['days'] = self.alarm_settings(alarm)
+            alarm_datetime = datetime.datetime.strptime(attr['time'],'%H:%M:%S')
+            data['alarms_hour'][alarm] = alarm_datetime.hour
+            data['alarms_minute'][alarm] = alarm_datetime.minute
+            if self.is_everyday(alarm):
+                data['alarms_day'][alarm] = 'daily'
+            elif self.is_workday(alarm):
+                data['alarms_day'][alarm] = 'workdays'
+            elif self.is_weekend(alarm):
+                data['alarms_day'][alarm] = 'weekend'
+            elif self.is_tomorrow(alarm):
+                data['alarms_day'][alarm] = 'tomorrow'
+            else:
+                data['alarms_day'][alarm] = 'unknown'
+
+        data['snooze_time'] = self.snoozetime
+        data['next_alarm'] = datetime.datetime.fromisoformat(self.next_alarm()).astimezone() if self.next_alarm() else None
+
+        data['temperature'] = self.temperature()
+        data['humidity'] = self.humidity()
+        data['luminance'] = self.luminance()
+        data['noise'] = self.noise()
+
+        return data
+
     def light_status(self):
         """Return the status of the light."""
         return self.light_data['onoff'], int(int(self.light_data['ltlvl']) / 25 * 255)

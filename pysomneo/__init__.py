@@ -397,8 +397,8 @@ class Somneo(object):
                     alarm_time_full = datetime.datetime.combine(nu_dag, alarm_time)
                     if alarm_time_full > nu_tijd:
                         new_next_alarm = alarm_time_full
-                    elif alarm_time_full + datetime.timedelta(days=1) > nu_tijd:
-                        new_next_alarm = alarm_time_full
+                    else:
+                        new_next_alarm = alarm_time_full + datetime.timedelta(days=1)
                 else:
                     for d in range(0, 7):
                         test_day = day_today + d

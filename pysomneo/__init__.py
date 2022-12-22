@@ -310,11 +310,11 @@ class Somneo(object):
 
     def light_status(self):
         """Return the status of the light."""
-        return self.light_data['onoff'], int(int(self.light_data['ltlvl']) / 25 * 255)
+        return bool(self.light_data['onoff']), int(int(self.light_data['ltlvl']) / 25 * 255)
 
     def night_light_status(self):
         """Return the status of the night light."""
-        return self.light_data['ngtlt']
+        return bool(self.light_data['ngtlt'])
 
     def alarms(self):
         """Return the list of alarms."""

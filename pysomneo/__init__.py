@@ -4,6 +4,7 @@ import json
 import xml.etree.ElementTree as ET
 import logging
 import datetime
+import uuid
 
 _LOGGER = logging.getLogger('pysomneo')
 
@@ -42,8 +43,15 @@ class Somneo(object):
     def get_device_info(self):
         """ Get Device information """
         try:
-            response = self._session.request('GET', 'https://' + self.host + '/upnp/description.xml', verify=False,
+            response = self._session.request('GET', 'https://' + self.host + '/upnp/description.xml', verify=False, 
                                              timeout=20)
+            
+            # Check if HTTPS gave valid response, otherwise probe http
+            try:
+                ET.fromstring(response.content)
+            except:
+                response = self._session.request('GET', 'http://' + self.host + '/upnp/description.xml', verify=False, 
+                                                 timeout=20)
         except requests.Timeout:
             _LOGGER.error('Connection to Somneo timed out.')
             raise
@@ -51,13 +59,23 @@ class Somneo(object):
             _LOGGER.error('Error connecting to Somneo.')
             raise
 
-        root = ET.fromstring(response.content)
+        _LOGGER.debug(response.content)
 
-        device_info = dict()
-        device_info['manufacturer'] = root[1][2].text
-        device_info['model'] = root[1][3].text
-        device_info['modelnumber'] = root[1][4].text
-        device_info['serial'] = root[1][6].text
+        # If no valid xml obtained from https and http, use default values.
+        try:
+            root = ET.fromstring(response.content)
+
+            device_info = dict()
+            device_info['manufacturer'] = root[1][2].text
+            device_info['model'] = root[1][3].text
+            device_info['modelnumber'] = root[1][4].text
+            device_info['serial'] = root[1][6].text
+        except:
+            device_info = dict()
+            device_info['manufacturer'] = 'Royal Philips Electronics'
+            device_info['model'] = 'Wake-up Light'
+            device_info['modelnumber'] = 'Unknown'
+            device_info['serial'] = str(uuid.uuid1())
 
         return device_info
 

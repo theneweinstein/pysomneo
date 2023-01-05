@@ -397,6 +397,7 @@ class Somneo(object):
     def next_alarm(self):
         """Get the next alarm that is set."""
         next_alarm = None
+        new_next_alarm = None
         for alarm in list(self.alarm_data):
             if self.alarm_data[alarm]['enabled'] == True:
                 nu_tijd = datetime.datetime.now()

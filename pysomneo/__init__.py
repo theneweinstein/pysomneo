@@ -124,6 +124,11 @@ class Somneo(object):
         payload['ngtlt'] = False
         if brightness:
             payload['ltlvl'] = int(brightness/255 * 25)
+
+        # Some Wake-ups lights don't work with wucrv, remove key if exists
+        if 'wucrv' in payload:
+            payload.pop('wucrv')
+
         self._put('wulgt', payload = payload)
 
     def get_alarm_settings(self, alarm):
@@ -257,6 +262,11 @@ class Somneo(object):
         payload = self.light_data
         payload['onoff'] = False
         payload['ngtlt'] = state
+
+        # Some Wake-ups lights don't work with wucrv, remove key if exists
+        if 'wucrv' in payload:
+            payload.pop('wucrv')
+
         self._put('wulgt', payload=payload)
 
     def update(self):

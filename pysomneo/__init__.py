@@ -278,21 +278,25 @@ class Somneo(object):
         # Get sensor data
         self.sensor_data = self._get('wusrd')
 
-        # Get alarm data
+        # Get enabled alarm data
         enabled_alarms = self._get('wualm/aenvs')
-        time_alarms = self._get('wualm/aalms')
 
         # Get snoozetime
         self.snoozetime = self.get_snooze_time()
 
         for alarm, enabled in enumerate(enabled_alarms['prfen']):
             alarm_name = 'alarm' + str(alarm)
+            alarm_settings = self.get_alarm_settings(alarm)
             self.alarm_data[alarm_name] = dict()
             self.alarm_data[alarm_name]['position'] = alarm + 1
             self.alarm_data[alarm_name]['enabled'] = bool(enabled)
-            self.alarm_data[alarm_name]['time'] = datetime.time(int(time_alarms['almhr'][alarm]),
-                                                                int(time_alarms['almmn'][alarm]))
-            self.alarm_data[alarm_name]['days'] = int(time_alarms['daynm'][alarm])
+            self.alarm_data[alarm_name]['time'] = datetime.time(int(alarm_settings['almhr']),
+                                                                int(alarm_settings['almmn']))
+            self.alarm_data[alarm_name]['days'] = int(alarm_settings['daynm'])
+            self.alarm_data[alarm_name]['powerwake'] = bool(alarm_settings['pwrsz'])
+            self.alarm_data[alarm_name]['powerwake_time'] = datetime.time(int(alarm_settings['pszhr']),
+                                                                int(alarm_settings['pszmn']))
+
 
     def fetch_data(self):
         """Fetch the latest data from Somneo."""
@@ -309,10 +313,11 @@ class Somneo(object):
         data['alarms_hour'] = dict()
         data['alarms_minute'] = dict()
         data['alarms_day'] = dict()
+        data['powerwake'] = dict()
+        data['powerwake_time'] = dict()
         for alarm in data['alarms']:
-            attr = {}
-            attr['time'], attr['days'] = self.alarm_settings(alarm)
-            alarm_datetime = datetime.datetime.strptime(attr['time'],'%H:%M:%S')
+            alarm_time = self.alarm_data[alarm]['time'].isoformat()
+            alarm_datetime = datetime.datetime.strptime(alarm_time,'%H:%M:%S')
             data['alarms_hour'][alarm] = alarm_datetime.hour
             data['alarms_minute'][alarm] = alarm_datetime.minute
             if self.is_everyday(alarm):
@@ -325,6 +330,8 @@ class Somneo(object):
                 data['alarms_day'][alarm] = 'tomorrow'
             else:
                 data['alarms_day'][alarm] = 'unknown'
+            data['powerwake'][alarm] = self.alarm_data[alarm]['powerwake']
+            data['powerwake_time'][alarm] = datetime.datetime.strptime(self.alarm_data[alarm]['powerwake_time'].isoformat(),'%H:%M:%S')
 
         data['snooze_time'] = self.snoozetime
         data['next_alarm'] = datetime.datetime.fromisoformat(self.next_alarm()).astimezone() if self.next_alarm() else None

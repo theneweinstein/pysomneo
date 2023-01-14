@@ -155,6 +155,14 @@ class Somneo(object):
             alarm_settings['daynm'] = int(days)                    # set days to repeat the alarm
             self.alarm_data[alarm]['days'] = days
 
+        # Update powerwake
+        if self.alarm_data[alarm]['powerwake']:
+            alarm_datetime = datetime.datetime.strptime(self.alarm_data[alarm]['time'].isoformat(),'%H:%M:%S')
+            powerwake_datetime = alarm_datetime + datetime.timedelta(minutes = self.alarm_data[alarm]['powerwake_delta'])
+
+            alarm_settings['pszhr'] = powerwake_datetime.hour
+            alarm_settings['pszmn'] = powerwake_datetime.minute
+
         # Send alarm settings
         self._put('wualm/prfwu', payload=alarm_settings)
 
@@ -205,13 +213,20 @@ class Somneo(object):
         response = self._get('wualm')
         return response['snztm']
 
-    def set_powerwake(self, alarm, onoff = False, hour = 0, minute = 0):
+    def set_powerwake(self, alarm, onoff = False, delta=0):
         """Set power wake"""
+
+        alarm_datetime = datetime.datetime.strptime(self.alarm_data[alarm]['time'].isoformat(),'%H:%M:%S')
+        powerwake_datetime = alarm_datetime + datetime.timedelta(minutes=delta)
+
         alarm_settings = dict()
         alarm_settings['prfnr'] = self.alarm_data[alarm]['position']
         alarm_settings['pwrsz'] = 1 if onoff else 0
-        alarm_settings['pszhr'] = int(hour)
-        alarm_settings['pszmn'] = int(minute)
+        alarm_settings['pszhr'] = powerwake_datetime.hour if onoff else 0
+        alarm_settings['pszmn'] = powerwake_datetime.minute if onoff else 0
+
+        self.alarm_data[alarm]['powerwake'] = onoff
+        self.alarm_data[alarm]['powerwake_delta'] = delta if onoff else 0
 
         # Send alarm settings
         self._put('wualm/prfwu', payload=alarm_settings) 
@@ -286,7 +301,7 @@ class Somneo(object):
 
         for alarm, enabled in enumerate(enabled_alarms['prfen']):
             alarm_name = 'alarm' + str(alarm)
-            alarm_settings = self.get_alarm_settings(alarm)
+            alarm_settings = self._put('wualm',payload={'prfnr': alarm + 1})
             self.alarm_data[alarm_name] = dict()
             self.alarm_data[alarm_name]['position'] = alarm + 1
             self.alarm_data[alarm_name]['enabled'] = bool(enabled)
@@ -294,8 +309,11 @@ class Somneo(object):
                                                                 int(alarm_settings['almmn']))
             self.alarm_data[alarm_name]['days'] = int(alarm_settings['daynm'])
             self.alarm_data[alarm_name]['powerwake'] = bool(alarm_settings['pwrsz'])
-            self.alarm_data[alarm_name]['powerwake_time'] = datetime.time(int(alarm_settings['pszhr']),
-                                                                int(alarm_settings['pszmn']))
+            if bool(alarm_settings['pwrsz']):
+                self.alarm_data[alarm_name]['powerwake_delta'] = max(0, 60 * int(alarm_settings['pszhr']) + int(alarm_settings['pszmn'])
+                                                                - 60 * int(alarm_settings['almhr']) - int(alarm_settings['almmn']))
+            else:
+                self.alarm_data[alarm_name]['powerwake_delta'] = 0
 
 
     def fetch_data(self):
@@ -314,10 +332,9 @@ class Somneo(object):
         data['alarms_minute'] = dict()
         data['alarms_day'] = dict()
         data['powerwake'] = dict()
-        data['powerwake_time'] = dict()
+        data['powerwake_delta'] = dict()
         for alarm in data['alarms']:
-            alarm_time = self.alarm_data[alarm]['time'].isoformat()
-            alarm_datetime = datetime.datetime.strptime(alarm_time,'%H:%M:%S')
+            alarm_datetime = datetime.datetime.strptime(self.alarm_data[alarm]['time'].isoformat(),'%H:%M:%S')
             data['alarms_hour'][alarm] = alarm_datetime.hour
             data['alarms_minute'][alarm] = alarm_datetime.minute
             if self.is_everyday(alarm):
@@ -331,7 +348,7 @@ class Somneo(object):
             else:
                 data['alarms_day'][alarm] = 'unknown'
             data['powerwake'][alarm] = self.alarm_data[alarm]['powerwake']
-            data['powerwake_time'][alarm] = datetime.datetime.strptime(self.alarm_data[alarm]['powerwake_time'].isoformat(),'%H:%M:%S')
+            data['powerwake_delta'][alarm] = self.alarm_data[alarm]['powerwake_delta']
 
         data['snooze_time'] = self.snoozetime
         data['next_alarm'] = datetime.datetime.fromisoformat(self.next_alarm()).astimezone() if self.next_alarm() else None

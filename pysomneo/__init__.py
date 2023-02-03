@@ -489,3 +489,9 @@ class Somneo(object):
     def noise(self):
         """Return the temperature."""
         return self.sensor_data['mssnd']
+
+    def toggle_alarm(self, status):
+        """ Toggle the sunset feature on or off """
+        payload = dict()
+        payload['onoff'] = status
+        self._put('wudsk', payload=payload)

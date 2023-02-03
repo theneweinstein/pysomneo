@@ -490,7 +490,7 @@ class Somneo(object):
         """Return the temperature."""
         return self.sensor_data['mssnd']
 
-    def toggle_alarm(self, status):
+    def toggle_sunset(self, status):
         """ Toggle the sunset feature on or off """
         payload = dict()
         payload['onoff'] = status

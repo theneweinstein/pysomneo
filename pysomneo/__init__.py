@@ -37,6 +37,7 @@ class Somneo(object):
 
         self.light_data = None
         self.sensor_data = None
+        self.sunset_data = None
         self.alarm_data = dict()
         self.snoozetime = None
 
@@ -292,6 +293,9 @@ class Somneo(object):
 
         # Get sensor data
         self.sensor_data = self._get('wusrd')
+        
+        # Get sunset data
+        self.sunset_data = self._get('wudsk')
 
         # Get enabled alarm data
         enabled_alarms = self._get('wualm/aenvs')
@@ -495,3 +499,7 @@ class Somneo(object):
         payload = dict()
         payload['onoff'] = status
         self._put('wudsk', payload=payload)
+        
+    def sunset_status(self):
+        """Return the status of the sunset light."""
+        return bool(self.sunset_data['onoff']), int(int(self.sunset_data['sndlv']) / 25 * 255)

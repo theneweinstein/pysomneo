@@ -28,18 +28,28 @@ class Somneo(object):
     Class represents the Somneo wake-up light.
     """
 
-    def __init__(self, host=None):
+    def __init__(self, host=None, use_session=True):
         """Initialize."""
         urllib3.disable_warnings()
         self.host = host
         self._base_url = 'https://' + host + '/di/v1/products/1/'
-        self._session = requests.Session()
+        self._requests_session = None
+        self._use_session = use_session
 
         self.light_data = None
         self.sensor_data = None
         self.sunset_data = None
         self.alarm_data = dict()
         self.snoozetime = None
+
+    @property
+    def _session(self):
+        if self._use_session:
+            if self._requests_session is None:
+                self._requests_session = requests.Session()
+            return self._requests_session
+        else:
+            return requests
 
     def get_device_info(self):
         """ Get Device information """

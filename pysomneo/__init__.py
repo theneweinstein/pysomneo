@@ -309,23 +309,24 @@ class Somneo(object):
 
         # Get enabled alarm data
         enabled_alarms = self._get('wualm/aenvs')
+        time_alarms = self._get('wualm/aalms')
 
         # Get snoozetime
         self.snoozetime = self.get_snooze_time()
 
         for alarm, enabled in enumerate(enabled_alarms['prfen']):
             alarm_name = 'alarm' + str(alarm)
-            alarm_settings = self._put('wualm',payload={'prfnr': alarm + 1})
+            #alarm_settings = self._put('wualm',payload={'prfnr': alarm + 1})
             self.alarm_data[alarm_name] = dict()
             self.alarm_data[alarm_name]['position'] = alarm + 1
             self.alarm_data[alarm_name]['enabled'] = bool(enabled)
-            self.alarm_data[alarm_name]['time'] = datetime.time(int(alarm_settings['almhr']),
-                                                                int(alarm_settings['almmn']))
-            self.alarm_data[alarm_name]['days'] = int(alarm_settings['daynm'])
-            self.alarm_data[alarm_name]['powerwake'] = bool(alarm_settings['pwrsz'])
-            if bool(alarm_settings['pwrsz']):
-                self.alarm_data[alarm_name]['powerwake_delta'] = max(0, 60 * int(alarm_settings['pszhr']) + int(alarm_settings['pszmn'])
-                                                                - 60 * int(alarm_settings['almhr']) - int(alarm_settings['almmn']))
+            self.alarm_data[alarm_name]['time'] = datetime.time(int(time_alarms['almhr'][alarm]),
+                                                                int(time_alarms['almmn'][alarm]))
+            self.alarm_data[alarm_name]['days'] = int(time_alarms['daynm'][alarm])
+            self.alarm_data[alarm_name]['powerwake'] = bool(enabled_alarms['pwrsv'][3*alarm])
+            if bool(enabled_alarms['pwrsv'][3*alarm]):
+                self.alarm_data[alarm_name]['powerwake_delta'] = max(0, 60 * int(enabled_alarms['pwrsv'][3*alarm+1]) + int(enabled_alarms['pwrsv'][3*alarm+2])
+                                                                - 60 * int(time_alarms['almhr'][alarm]) - int(time_alarms['almmn'][alarm]))
             else:
                 self.alarm_data[alarm_name]['powerwake_delta'] = 0
 

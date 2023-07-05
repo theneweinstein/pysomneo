@@ -142,6 +142,14 @@ class Somneo(object):
 
         self._put('wulgt', payload = payload)
 
+    def dismiss_alarm(self):
+        """ Dismiss a running alarm. """
+        self._put('wualm/alctr', payload={'disms':True})
+
+    def snooze_alarm(self):
+        """ Snooze a running alarm. """
+        self._put('wualm/alctr', payload={'tapsz':True})
+
     def get_alarm_settings(self, alarm):
         """ Get the alarm settings. """
         # Get alarm position
@@ -298,6 +306,19 @@ class Somneo(object):
     def update(self):
         """Get the latest update from Somneo."""
 
+        # Get alarm status
+        alarm_status = self._get('wusts')
+        if alarm_status['wusts'] == 1:
+            self.alarm_status = 'off'
+        elif alarm_status['wusts'] == 2321:
+            self.alarm_status = 'snooze'
+        elif alarm_status['wusts'] == 2309:
+            self.alarm_status = 'wake-up'
+        elif alarm_status['wusts'] == 2817:
+            self.alarm_status = 'on'
+        else:
+            self.alarm_status = 'unknown'
+
         # Get light information
         self.light_data = self._get('wulgt')
 
@@ -342,6 +363,8 @@ class Somneo(object):
         data['light_is_on'], data['light_brightness'] = self.light_status()
         data['nightlight_is_on'] = self.night_light_status()
         data['alarms'] = self.alarms()
+
+        data['alarm_status'] = self.alarm_status
 
         data['alarms_hour'] = dict()
         data['alarms_minute'] = dict()

@@ -22,6 +22,7 @@ SOUND_CHANNEL = {'forest birds': '1',
                     'summer lake': '7',
                     'ocean waves': '8',
                     }
+SOURCES = ['AUX', 'FM 1','FM 2','FM 3','FM 4','FM 5']
 
 class Somneo(object):
     """ 
@@ -41,6 +42,7 @@ class Somneo(object):
         self.sunset_data = None
         self.alarm_data = dict()
         self.snoozetime = None
+        self.player = None
 
     @property
     def _session(self):
@@ -128,6 +130,113 @@ class Somneo(object):
         """Put request."""
         return self._internal_call('PUT', url, {"Content-Type": "application/json"}, payload)
 
+    def update(self):
+        """Get the latest update from Somneo."""
+
+        # Get alarm status
+        alarm_status = self._get('wusts')
+        if alarm_status['wusts'] == 1:
+            self.alarm_status = 'off'
+        elif alarm_status['wusts'] == 2321:
+            self.alarm_status = 'snooze'
+        elif alarm_status['wusts'] == 2309:
+            self.alarm_status = 'wake-up'
+        elif alarm_status['wusts'] == 2817:
+            self.alarm_status = 'on'
+        else:
+            self.alarm_status = 'unknown'
+
+        # Get light information
+        self.light_data = self._get('wulgt')
+
+        # Get sensor data
+        self.sensor_data = self._get('wusrd')
+        
+        # Get sunset data
+        self.sunset_data = self._get('wudsk')
+
+        # Get enabled alarm data
+        enabled_alarms = self._get('wualm/aenvs')
+        time_alarms = self._get('wualm/aalms')
+
+        # Get snoozetime
+        self.snoozetime = self.get_snooze_time()
+
+        for alarm, enabled in enumerate(enabled_alarms['prfen']):
+            alarm_name = 'alarm' + str(alarm)
+            #alarm_settings = self._put('wualm',payload={'prfnr': alarm + 1})
+            self.alarm_data[alarm_name] = dict()
+            self.alarm_data[alarm_name]['position'] = alarm + 1
+            self.alarm_data[alarm_name]['enabled'] = bool(enabled)
+            self.alarm_data[alarm_name]['time'] = datetime.time(int(time_alarms['almhr'][alarm]),
+                                                                int(time_alarms['almmn'][alarm]))
+            self.alarm_data[alarm_name]['days'] = int(time_alarms['daynm'][alarm])
+            self.alarm_data[alarm_name]['powerwake'] = bool(enabled_alarms['pwrsv'][3*alarm])
+            if bool(enabled_alarms['pwrsv'][3*alarm]):
+                self.alarm_data[alarm_name]['powerwake_delta'] = max(0, 60 * int(enabled_alarms['pwrsv'][3*alarm+1]) + int(enabled_alarms['pwrsv'][3*alarm+2])
+                                                                - 60 * int(time_alarms['almhr'][alarm]) - int(time_alarms['almmn'][alarm]))
+            else:
+                self.alarm_data[alarm_name]['powerwake_delta'] = 0
+
+        # Get player information
+        self.player = self._get("wuply")
+        
+
+    def fetch_data(self):
+        """Fetch the latest data from Somneo."""
+        
+        # Perform update
+        self.update()
+
+        # Store info in data structure compatible with home assistant coordinator.
+        data = dict()
+        data['light_is_on'], data['light_brightness'] = self.light_status()
+        data['nightlight_is_on'] = self.night_light_status()
+        data['alarms'] = self.alarms()
+
+        data['alarm_status'] = self.alarm_status
+
+        data['alarms_hour'] = dict()
+        data['alarms_minute'] = dict()
+        data['alarms_day'] = dict()
+        data['powerwake'] = dict()
+        data['powerwake_delta'] = dict()
+        for alarm in data['alarms']:
+            alarm_datetime = datetime.datetime.strptime(self.alarm_data[alarm]['time'].isoformat(),'%H:%M:%S')
+            data['alarms_hour'][alarm] = alarm_datetime.hour
+            data['alarms_minute'][alarm] = alarm_datetime.minute
+            if self.is_everyday(alarm):
+                data['alarms_day'][alarm] = 'daily'
+            elif self.is_workday(alarm):
+                data['alarms_day'][alarm] = 'workdays'
+            elif self.is_weekend(alarm):
+                data['alarms_day'][alarm] = 'weekend'
+            elif self.is_tomorrow(alarm):
+                data['alarms_day'][alarm] = 'tomorrow'
+            else:
+                data['alarms_day'][alarm] = 'unknown'
+            data['powerwake'][alarm] = self.alarm_data[alarm]['powerwake']
+            data['powerwake_delta'][alarm] = self.alarm_data[alarm]['powerwake_delta']
+
+        data['snooze_time'] = self.snoozetime
+        data['next_alarm'] = datetime.datetime.fromisoformat(self.next_alarm()).astimezone() if self.next_alarm() else None
+
+        data['temperature'] = self.temperature()
+        data['humidity'] = self.humidity()
+        data['luminance'] = self.luminance()
+        data['noise'] = self.noise()
+
+        data['player'] = dict()
+        data['player']['state'] = bool(self.player['onoff'])
+        data['player']['volume'] = (float(self.light_data['sdvol']) - 1) / 24
+        if self.player['snddv'] == 'aux':
+            data['player']['source'] = 'AUX'
+        elif self.player['snddv'] == 'fmr':
+            data['player']['source'] = 'FM ' + self.player['sndch']
+
+
+        return data
+    
     def toggle_light(self, state, brightness = None):
         """ Toggle the light on or off """
         payload = self.light_data
@@ -303,101 +412,6 @@ class Somneo(object):
 
         self._put('wulgt', payload=payload)
 
-    def update(self):
-        """Get the latest update from Somneo."""
-
-        # Get alarm status
-        alarm_status = self._get('wusts')
-        if alarm_status['wusts'] == 1:
-            self.alarm_status = 'off'
-        elif alarm_status['wusts'] == 2321:
-            self.alarm_status = 'snooze'
-        elif alarm_status['wusts'] == 2309:
-            self.alarm_status = 'wake-up'
-        elif alarm_status['wusts'] == 2817:
-            self.alarm_status = 'on'
-        else:
-            self.alarm_status = 'unknown'
-
-        # Get light information
-        self.light_data = self._get('wulgt')
-
-        # Get sensor data
-        self.sensor_data = self._get('wusrd')
-        
-        # Get sunset data
-        self.sunset_data = self._get('wudsk')
-
-        # Get enabled alarm data
-        enabled_alarms = self._get('wualm/aenvs')
-        time_alarms = self._get('wualm/aalms')
-
-        # Get snoozetime
-        self.snoozetime = self.get_snooze_time()
-
-        for alarm, enabled in enumerate(enabled_alarms['prfen']):
-            alarm_name = 'alarm' + str(alarm)
-            #alarm_settings = self._put('wualm',payload={'prfnr': alarm + 1})
-            self.alarm_data[alarm_name] = dict()
-            self.alarm_data[alarm_name]['position'] = alarm + 1
-            self.alarm_data[alarm_name]['enabled'] = bool(enabled)
-            self.alarm_data[alarm_name]['time'] = datetime.time(int(time_alarms['almhr'][alarm]),
-                                                                int(time_alarms['almmn'][alarm]))
-            self.alarm_data[alarm_name]['days'] = int(time_alarms['daynm'][alarm])
-            self.alarm_data[alarm_name]['powerwake'] = bool(enabled_alarms['pwrsv'][3*alarm])
-            if bool(enabled_alarms['pwrsv'][3*alarm]):
-                self.alarm_data[alarm_name]['powerwake_delta'] = max(0, 60 * int(enabled_alarms['pwrsv'][3*alarm+1]) + int(enabled_alarms['pwrsv'][3*alarm+2])
-                                                                - 60 * int(time_alarms['almhr'][alarm]) - int(time_alarms['almmn'][alarm]))
-            else:
-                self.alarm_data[alarm_name]['powerwake_delta'] = 0
-
-
-    def fetch_data(self):
-        """Fetch the latest data from Somneo."""
-        
-        # Perform update
-        self.update()
-
-        # Store info in data structure compatible with home assistant coordinator.
-        data = dict()
-        data['light_is_on'], data['light_brightness'] = self.light_status()
-        data['nightlight_is_on'] = self.night_light_status()
-        data['alarms'] = self.alarms()
-
-        data['alarm_status'] = self.alarm_status
-
-        data['alarms_hour'] = dict()
-        data['alarms_minute'] = dict()
-        data['alarms_day'] = dict()
-        data['powerwake'] = dict()
-        data['powerwake_delta'] = dict()
-        for alarm in data['alarms']:
-            alarm_datetime = datetime.datetime.strptime(self.alarm_data[alarm]['time'].isoformat(),'%H:%M:%S')
-            data['alarms_hour'][alarm] = alarm_datetime.hour
-            data['alarms_minute'][alarm] = alarm_datetime.minute
-            if self.is_everyday(alarm):
-                data['alarms_day'][alarm] = 'daily'
-            elif self.is_workday(alarm):
-                data['alarms_day'][alarm] = 'workdays'
-            elif self.is_weekend(alarm):
-                data['alarms_day'][alarm] = 'weekend'
-            elif self.is_tomorrow(alarm):
-                data['alarms_day'][alarm] = 'tomorrow'
-            else:
-                data['alarms_day'][alarm] = 'unknown'
-            data['powerwake'][alarm] = self.alarm_data[alarm]['powerwake']
-            data['powerwake_delta'][alarm] = self.alarm_data[alarm]['powerwake_delta']
-
-        data['snooze_time'] = self.snoozetime
-        data['next_alarm'] = datetime.datetime.fromisoformat(self.next_alarm()).astimezone() if self.next_alarm() else None
-
-        data['temperature'] = self.temperature()
-        data['humidity'] = self.humidity()
-        data['luminance'] = self.luminance()
-        data['noise'] = self.noise()
-
-        return data
-
     def light_status(self):
         """Return the status of the light."""
         return bool(self.light_data['onoff']), int(int(self.light_data['ltlvl']) / 25 * 255)
@@ -537,3 +551,24 @@ class Somneo(object):
     def sunset_status(self):
         """Return the status of the sunset light."""
         return bool(self.sunset_data['onoff']), int(int(self.sunset_data['sndlv']) / 25 * 255)
+    
+    def toggle_player(self, state: bool):
+        """Toggle the audio player"""
+        self._put('wuply', payload={'onoff': state})
+
+    def set_volume_player(self, volume: float):
+        """Set the volume of the player (0..1)"""
+        if volume < 0:
+            volume = 0
+        if volume > 1:
+            volume = 1
+
+        self._put('wuplay', payload={'sdvol': volume * 24 + 1})
+
+    def set_source_player(self, source: str | int):
+        """Set the source of the player, either 'aux' or preset 1..5"""
+        if source == 'aux' or 'AUX':
+            self._put('wuply', payload={'sndv': 'aux'})
+
+        elif source in range(1,6):
+            self._put('wuply', payload={'sndv': 'fmr', 'sndch': source})

@@ -22,7 +22,7 @@ SOUND_CHANNEL = {'forest birds': '1',
                     'summer lake': '7',
                     'ocean waves': '8',
                     }
-SOURCES = ['AUX', 'FM 1','FM 2','FM 3','FM 4','FM 5']
+SOURCES = {'AUX': 'aux', 'FM 1': 1,'FM 2': 2,'FM 3': 3,'FM 4': 4,'FM 5': 5}
 
 class Somneo(object):
     """ 
@@ -228,7 +228,7 @@ class Somneo(object):
 
         data['player'] = dict()
         data['player']['state'] = bool(self.player['onoff'])
-        data['player']['volume'] = (float(self.light_data['sdvol']) - 1) / 24
+        data['player']['volume'] = (float(self.player['sdvol']) - 1) / 24
         if self.player['snddv'] == 'aux':
             data['player']['source'] = 'AUX'
         elif self.player['snddv'] == 'fmr':
@@ -554,7 +554,9 @@ class Somneo(object):
     
     def toggle_player(self, state: bool):
         """Toggle the audio player"""
-        self._put('wuply', payload={'onoff': state})
+        data = self.player
+        data['onoff'] = state
+        self._put('wuply', payload=data)
 
     def set_volume_player(self, volume: float):
         """Set the volume of the player (0..1)"""
@@ -563,12 +565,34 @@ class Somneo(object):
         if volume > 1:
             volume = 1
 
-        self._put('wuplay', payload={'sdvol': volume * 24 + 1})
+        self._put('wuply', payload={'sdvol': int(volume * 24 + 1)})
 
     def set_source_player(self, source: str | int):
         """Set the source of the player, either 'aux' or preset 1..5"""
-        if source == 'aux' or 'AUX':
-            self._put('wuply', payload={'sndv': 'aux'})
+        previous_state = self.player['onoff']
+        if source == 'aux' or source == 'AUX':
+            self._put('wuply', payload=
+                      {'snddv': 'aux', 
+                       'sndss': 0,
+                       'onoff': previous_state,
+                       'tempy': False
+                    }
+                )
+            # Repeat command for some unknown reason
+            self._put('wuply', payload=
+                      {'snddv': 'aux', 
+                       'sndss': 0,
+                       'onoff': previous_state,
+                       'tempy': False
+                    }
+                )
 
         elif source in range(1,6):
-            self._put('wuply', payload={'sndv': 'fmr', 'sndch': source})
+            self._put('wuply', payload=
+                      {'snddv': 'fmr', 
+                       'sndch': str(source),
+                       'sndss': 0,
+                       'onoff': self.player['onoff'],
+                       'tempy': False
+                       }
+                )

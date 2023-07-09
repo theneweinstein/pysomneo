@@ -22,7 +22,7 @@ SOUND_CHANNEL = {'forest birds': '1',
                     'summer lake': '7',
                     'ocean waves': '8',
                     }
-SOURCES = {'AUX': 'aux', 'FM 1': 1,'FM 2': 2,'FM 3': 3,'FM 4': 4,'FM 5': 5}
+SOURCES = {'AUX': 'aux', 'FM 1': 1,'FM 2': 2,'FM 3': 3,'FM 4': 4,'FM 5': 5, 'Other': 'other'}
 
 class Somneo(object):
     """ 
@@ -233,6 +233,8 @@ class Somneo(object):
             data['player']['source'] = 'AUX'
         elif self.player['snddv'] == 'fmr':
             data['player']['source'] = 'FM ' + self.player['sndch']
+        else:
+            data['player']['source'] = 'Other'
 
 
         return data

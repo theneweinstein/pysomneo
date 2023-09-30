@@ -24,6 +24,8 @@ SOUND_CHANNEL = {'forest birds': '1',
                     }
 SOURCES = {'AUX': 'aux', 'FM 1': 1,'FM 2': 2,'FM 3': 3,'FM 4': 4,'FM 5': 5, 'Other': 'other'}
 
+DAYS = {0: 'tomorrow', 2: 'mon', 4: 'tue', 8: 'wed', 16: 'thu', 32: 'fri', 64: 'sat', 128: 'sun'}
+
 class Somneo(object):
     """ 
     Class represents the Somneo wake-up light.
@@ -199,6 +201,7 @@ class Somneo(object):
         data['alarms_hour'] = dict()
         data['alarms_minute'] = dict()
         data['alarms_day'] = dict()
+        data['alarm_day_list'] = dict()
         data['powerwake'] = dict()
         data['powerwake_delta'] = dict()
         for alarm in data['alarms']:
@@ -214,7 +217,8 @@ class Somneo(object):
             elif self.is_tomorrow(alarm):
                 data['alarms_day'][alarm] = 'tomorrow'
             else:
-                data['alarms_day'][alarm] = 'unknown'
+                data['alarms_day'][alarm] = 'custom'
+            data['alarm_day_list'][alarm] = self.get_alarm_days(alarm)
             data['powerwake'][alarm] = self.alarm_data[alarm]['powerwake']
             data['powerwake_delta'][alarm] = self.alarm_data[alarm]['powerwake_delta']
 
@@ -311,6 +315,12 @@ class Somneo(object):
     def set_alarm_tomorrow(self, alarm):
         """ Set alarm tomorrow. """
         self.set_alarm(alarm, days=0)
+
+    def set_alarm_days(self, alarm, days):
+        """ Set the alarm days. """
+        days_int = sum([k for k, v in DAYS.items() if (v in days)])
+        
+        self.set_alarm(alarm, days=days_int)
     
     def set_light_alarm(self, alarm, curve = 'sunny day', level = 20, duration = 30):
         """Adjust the lightcurve of the wake-up light"""
@@ -448,6 +458,13 @@ class Somneo(object):
     def is_tomorrow(self, alarm):
         days_int = self.alarm_data[alarm]['days']
         return days_int == 0
+    
+    def get_alarm_days(self, alarm):
+        days_int = self.alarm_data[alarm]['days']
+        if days_int == 0:
+            return ['tomorrow']
+        else:
+            return [v for k, v in DAYS.items() if k & days_int]
 
     def alarm_settings(self, alarm):
         """Return the time and days alarm is set."""

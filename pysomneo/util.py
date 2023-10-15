@@ -103,7 +103,7 @@ def next_alarm(alarms):
                     if test_day > 7:
                         test_day -= 7
                     if calendar.day_abbr[test_day-1].lower() in alarm_days:
-                        alarm_time_full = datetime.combine(now_day, alarm_time).astimezone() + timedelta(days=d)
+                        alarm_time_full = datetime.combine(now_day, alarm_time) + timedelta(days=d)
                         if alarm_time_full > now_time:
                             new_next_alarm = alarm_time_full
                             break
@@ -115,6 +115,6 @@ def next_alarm(alarms):
                 next_alarm = new_next_alarm
 
     if next_alarm:
-        return next_alarm
+        return next_alarm.astimezone()
     else:
         return None

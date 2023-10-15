@@ -115,6 +115,6 @@ def next_alarm(alarms):
                 next_alarm = new_next_alarm
 
     if next_alarm:
-        return next_alarm.isoformat()
+        return datetime.fromisoformat(next_alarm.isoformat())
     else:
         return None

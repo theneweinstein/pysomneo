@@ -7,9 +7,9 @@ import uuid
 
 _LOGGER = logging.getLogger('pysomneo')
 
-from api import get, put, SomneoSession
-from const import *
-from util import alarms_to_dict, next_alarm, days_list_to_int, sunset_to_dict, player_to_dict
+from .api import get, put, SomneoSession
+from .const import *
+from .util import alarms_to_dict, next_alarm, days_list_to_int, sunset_to_dict, player_to_dict
 
 class Somneo(object):
     """ 

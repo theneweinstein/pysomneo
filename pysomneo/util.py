@@ -66,11 +66,11 @@ def player_to_dict(player):
     data['state'] = bool(player['onoff'])
     data['volume'] = (float(player['sdvol']) - 1) / 24
     if player['snddv'] == 'aux':
-        data['player']['source'] = 'AUX'
+        data['source'] = 'AUX'
     elif player['snddv'] == 'fmr':
-        data['player']['source'] = 'FM ' + player['sndch']
+        data['source'] = 'FM ' + player['sndch']
     else:
-        data['player']['source'] = 'Other' 
+        data['source'] = 'Other' 
 
     return data
 

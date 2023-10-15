@@ -102,7 +102,7 @@ def next_alarm(alarms):
                     test_day = now_time.isoweekday() + d
                     if test_day > 7:
                         test_day -= 7
-                    if calendar.day_abbr[test_day].lower() in alarm_days:
+                    if calendar.day_abbr[test_day-1].lower() in alarm_days:
                         alarm_time_full = datetime.combine(now_day, alarm_time) + timedelta(days=d)
                         if alarm_time_full > now_time:
                             new_next_alarm = alarm_time_full

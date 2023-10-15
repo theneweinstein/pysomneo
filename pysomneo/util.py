@@ -1,7 +1,7 @@
 import calendar
 from datetime import time, date, timedelta, datetime 
 
-from const import DAYS, DAYS_TYPE, LIGHT_CURVES, SOUND_CHANNEL_DUSK
+from .const import DAYS, DAYS_TYPE, LIGHT_CURVES, SOUND_CHANNEL_DUSK
 
 def days_int_to_list(days_int):
     """Convert integer to list of days."""

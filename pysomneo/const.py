@@ -11,6 +11,7 @@ SOUND_CHANNEL_ALARM = {'forest birds': '1',
                     }
 SOUND_SOURCE_DUSK = {'radio': 'fmr', 'off': 'off','dusk': 'dus'}
 SOUND_CHANNEL_DUSK = {'soft rain': '1', 'ocean waves': '2', 'under water': '3', 'summer lake': '4'}
+SOUND_DUSK = {'soft rain': '1', 'ocean waves': '2', 'under water': '3', 'summer lake': '4', 'FM 1': 1, 'FM 2': 2, 'FM 3': 3, 'FM 4': 4, 'FM 5': 5, 'off': 'off'}
 
 SOURCES = {'AUX': 'aux', 'FM 1': 1,'FM 2': 2,'FM 3': 3,'FM 4': 4,'FM 5': 5, 'Other': 'other'}
 

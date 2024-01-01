@@ -330,7 +330,7 @@ class Somneo(object):
         if sound:
             if sound == 'off':
                 sunset_settings['snddv'] = 'off'
-            if sound[0:2] == 'FM':
+            if sound[0:2] == 'fm':
                 sunset_settings['snddv'] = 'fmr'
             else:
                 sunset_settings['snddv'] = 'dus'

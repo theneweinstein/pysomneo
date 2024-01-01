@@ -53,7 +53,7 @@ def sunset_to_dict(sunset_data):
     if sunset_data['snddv'] == 'dus':
         data['sound'] = list(SOUND_CHANNEL_DUSK.keys())[list(SOUND_CHANNEL_DUSK.values()).index(sunset_data['sndch'])]
     elif sunset_data['snddv'] == 'fmr':
-        data['sound'] = 'FM ' + sunset_data['sndch']
+        data['sound'] = 'fm ' + sunset_data['sndch']
     elif sunset_data['snddv'] == 'off':
         data['sound'] = 'off'
     else:
@@ -68,11 +68,11 @@ def player_to_dict(player):
     data['state'] = bool(player['onoff'])
     data['volume'] = (float(player['sdvol']) - 1) / 24
     if player['snddv'] == 'aux':
-        data['source'] = 'AUX'
+        data['source'] = 'aux'
     elif player['snddv'] == 'fmr':
-        data['source'] = 'FM ' + player['sndch']
+        data['source'] = 'fm ' + player['sndch']
     else:
-        data['source'] = 'Other' 
+        data['source'] = 'other' 
 
     return data
 

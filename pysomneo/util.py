@@ -91,7 +91,7 @@ def next_alarm(alarms):
             alarm_days = alarms[alarm]['days']
 
             # If alarm goes of tomorrow
-            if alarm_days == 'tomorrow':
+            if alarm_days == ['tomorrow']:
                 alarm_time_full = datetime.combine(now_day, alarm_time)
                 if alarm_time_full > now_time:
                     new_next_alarm = alarm_time_full

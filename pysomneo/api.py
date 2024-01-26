@@ -25,17 +25,15 @@ def internal_call(session, method, url, headers, payload):
     if headers:
         args['headers'] = headers
 
-    while True:
+    for attempt in range(3):
         try:
             r = session.request(method, url, verify=False, timeout=20, **args)
-        except Timeout:
-            _LOGGER.error('Connection to Somneo timed out.')
-            raise
-        except ConnectionError:
-            continue
-        except RequestException:
-            _LOGGER.error('Error connecting to Somneo.')
-            raise
+        except Exception as e:
+            if attempt == 2:
+                _LOGGER.error('Error connecting to somneo after 3 attempts.')
+                raise e
+            else:
+                continue
         else:
             if r.status_code == 422:
                 _LOGGER.error('Invalid URL.')

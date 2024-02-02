@@ -1,7 +1,7 @@
 import calendar
 from datetime import time, date, timedelta, datetime 
 
-from .const import DAYS, DAYS_TYPE, LIGHT_CURVES, SOUND_CHANNEL_DUSK
+from .const import DAYS, DAYS_TYPE, SOUND_CHANNEL_DUSK
 
 def days_int_to_list(days_int):
     """Convert integer to list of days."""
@@ -43,12 +43,15 @@ def alarms_to_dict(enabled_alarms, time_alarms):
 
     return alarms
 
-def sunset_to_dict(sunset_data):
+def sunset_to_dict(sunset_data, valid_curves):
     """Construct sunset data dictionary."""
     data = dict()
     data['is_on'] = bool(sunset_data['onoff'])
     data['duration'] = int(sunset_data['durat'])
-    data['curve'] = list(LIGHT_CURVES.keys())[list(LIGHT_CURVES.values()).index(sunset_data['ctype'])]
+    try:
+        data['curve'] = list(valid_curves.keys())[list(valid_curves.values()).index(sunset_data['ctype'])]
+    except:
+        raise Exception("An invalid light curves was selected for sunset. Please update your Somneo firmware and select a valid curve in the app before retrying.")
     data['level'] = sunset_data['curve']
     if sunset_data['snddv'] == 'dus':
         data['sound'] = list(SOUND_CHANNEL_DUSK.keys())[list(SOUND_CHANNEL_DUSK.values()).index(sunset_data['sndch'])]

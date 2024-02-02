@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 import logging
 import datetime
 import uuid
+import fnmatch
 
 _LOGGER = logging.getLogger('pysomneo')
 
@@ -31,12 +32,22 @@ class Somneo(object):
         urllib3.disable_warnings()
         self._host = host
         self._session = SomneoSession(base_url='https://' + host + '/di/v1/products/1/')
+        self.version = self._get_device_version()
+        self.version[5] = 'x'
+        if self.version not in SUPPORTED_DEVICES:
+            _LOGGER.error('This device is not supported.')
+            raise Exception("This device is not supported by pysomneo.")
 
     def _get(self, url):
         return get(self._session, url)
     
     def _put(self, url, payload=None):
         return put(self._session, url, payload=payload)
+    
+    def _get_device_version(self):
+        """Get version of the device."""
+        device = self._get('device')
+        return device['ctn']
 
     def get_device_info(self):
         """ Get Device information """
@@ -105,7 +116,7 @@ class Somneo(object):
         self.data['next_alarm'] = next_alarm(self.data['alarms'])
 
         # Sunset information
-        self.data['sunset'] = sunset_to_dict(self.sunset_data)
+        self.data['sunset'] = sunset_to_dict(self.sunset_data, LIGHT_CURVES[self.version])
 
         # Get player information
         self.data['player'] = player_to_dict(self.player) 
@@ -324,7 +335,7 @@ class Somneo(object):
         if duration:
             sunset_settings['durat'] = duration
         if curve:
-            sunset_settings['ctype'] = LIGHT_CURVES[curve.lower()]
+            sunset_settings['ctype'] = LIGHT_CURVES[self.version][curve.lower()]
         if level:
             sunset_settings['curve'] = level
         if sound:

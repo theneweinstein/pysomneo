@@ -1,4 +1,5 @@
-LIGHT_CURVES = {'sunny day': 0, 'island red': 1,'nordic white': 2}
+SUPPORTED_DEVICES = ['HF367x/01', 'HF367x/60']
+LIGHT_CURVES = {'HF367x/01': {'sunny day': 0, 'island red': 1,'nordic white': 2}, 'HF367x/60': {'sunny day': 0, 'island red': 1,'nordic white': 2, 'caribbean red': 3}}
 SOUND_SOURCE_ALARM = {'wake-up': 'wus', 'radio': 'fmr', 'off': 'off'}
 SOUND_CHANNEL_ALARM = {'forest birds': '1', 
                     'summer birds': '2',

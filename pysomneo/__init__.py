@@ -32,11 +32,18 @@ class Somneo(object):
         urllib3.disable_warnings()
         self._host = host
         self._session = SomneoSession(base_url='https://' + host + '/di/v1/products/1/')
-        _version = self._get_device_version()
-        self.version = _version[:5] + 'x' + _version[6:]
-        if self.version not in SUPPORTED_DEVICES:
-            _LOGGER.error('This device is not supported.')
-            raise Exception("This device is not supported by pysomneo.")
+        self.version = None
+        
+    @property
+    def light_curves(self):
+        """Get valid light curves for this light."""
+        if not self.version:
+            _version = self._get_device_version()
+            self.version = _version[:5] + 'x' + _version[6:]
+            if self.version not in SUPPORTED_DEVICES:
+                _LOGGER.warn('The light curves of this device are unknown, using default device version HF367x/01')
+                self.version = 'HF367x/01'
+        return LIGHT_CURVES[self.version]
 
     def _get(self, url):
         return get(self._session, url)
@@ -116,7 +123,7 @@ class Somneo(object):
         self.data['next_alarm'] = next_alarm(self.data['alarms'])
 
         # Sunset information
-        self.data['sunset'] = sunset_to_dict(self.sunset_data, LIGHT_CURVES[self.version])
+        self.data['sunset'] = sunset_to_dict(self.sunset_data, self.light_curves)
 
         # Get player information
         self.data['player'] = player_to_dict(self.player) 
@@ -335,7 +342,7 @@ class Somneo(object):
         if duration:
             sunset_settings['durat'] = duration
         if curve:
-            sunset_settings['ctype'] = LIGHT_CURVES[self.version][curve.lower()]
+            sunset_settings['ctype'] = self.light_curves[curve.lower()]
         if level:
             sunset_settings['curve'] = level
         if sound:

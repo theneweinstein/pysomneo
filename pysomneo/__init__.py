@@ -32,8 +32,8 @@ class Somneo(object):
         urllib3.disable_warnings()
         self._host = host
         self._session = SomneoSession(base_url='https://' + host + '/di/v1/products/1/')
-        self.version = self._get_device_version()
-        self.version[5] = 'x'
+        _version = self._get_device_version()
+        self.version = _version[:5] + 'x' + _version[6:]
         if self.version not in SUPPORTED_DEVICES:
             _LOGGER.error('This device is not supported.')
             raise Exception("This device is not supported by pysomneo.")

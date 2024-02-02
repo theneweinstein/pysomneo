@@ -4,7 +4,6 @@ import xml.etree.ElementTree as ET
 import logging
 import datetime
 import uuid
-import fnmatch
 
 _LOGGER = logging.getLogger('pysomneo')
 

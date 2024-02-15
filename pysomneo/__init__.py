@@ -25,6 +25,11 @@ class Somneo(object):
     snoozetime = None
     player = None
     data = None
+    _wake_light_themes = {}
+    _dusk_light_themes = {}
+    _wake_sound_themes = {}
+    _dusk_sound_themes = {}
+    
 
     def __init__(self, host=None):
         """Initialize."""
@@ -34,15 +39,32 @@ class Somneo(object):
         self.version = None
         
     @property
-    def light_curves(self):
+    def wake_light_themes(self):
         """Get valid light curves for this light."""
-        if not self.version:
-            _version = self._get_device_version()
-            self.version = _version[:5] + 'x' + _version[6:]
-            if self.version not in SUPPORTED_DEVICES:
-                _LOGGER.warn('The light curves of this device are unknown, using default device version HF367x/01')
-                self.version = 'HF367x/01'
-        return LIGHT_CURVES[self.version]
+        if len(self._wake_light_themes) == 0:
+            self._get_themes()
+        return self._wake_light_themes
+    
+    @property
+    def dusk_light_themes(self):
+        """Get valid dusk curves for this light."""
+        if len(self._dusk_light_themes) == 0:
+            self._get_themes()
+        return self._dusk_light_themes
+    
+    @property
+    def wake_sound_themes(self):
+        """Get valid wake-up sounds for this light."""
+        if len(self._wake_sound_themes) == 0:
+            self._get_themes()
+        return self._wake_sound_themes
+    
+    @property
+    def dusk_sound_themes(self):
+        """Get valid winddown sounds for this light."""
+        if len(self._dusk_sound_themes) == 0:
+            self._get_themes()
+        return self._dusk_sound_themes
 
     def _get(self, url):
         return get(self._session, url)
@@ -50,10 +72,27 @@ class Somneo(object):
     def _put(self, url, payload=None):
         return put(self._session, url, payload=payload)
     
-    def _get_device_version(self):
-        """Get version of the device."""
-        device = self._get('device')
-        return device['ctn']
+    def _get_themes(self):
+        """Get themes."""
+        response = self._get('files/lightthemes')
+        for idx, item in enumerate(response.values()):
+            if item['name']:
+                self._wake_light_themes.update({item['name'].lower(): idx})
+
+        response = self._get('files/dusklightthemes')
+        for idx, item in enumerate(response.values()):
+            if item['name']:
+                self._dusk_light_themes.update({item['name'].lower(): idx})
+
+        response = self._get('files/wakeup')
+        for idx, item in enumerate(response.values()):
+            if item['name']:
+                self._wake_sound_themes.update({item['name'].lower(): idx+1})
+
+        response = self._get('files/winddowndusk')
+        for idx, item in enumerate(response.values()):
+            if item['name']:
+                self._dusk_sound_themes.update({item['name'].lower(): idx+1})
 
     def get_device_info(self):
         """ Get Device information """
@@ -122,7 +161,7 @@ class Somneo(object):
         self.data['next_alarm'] = next_alarm(self.data['alarms'])
 
         # Sunset information
-        self.data['sunset'] = sunset_to_dict(self.sunset_data, self.light_curves)
+        self.data['sunset'] = sunset_to_dict(self.sunset_data, self.dusk_light_themes, self.dusk_sound_themes)
 
         # Get player information
         self.data['player'] = player_to_dict(self.player) 
@@ -242,7 +281,7 @@ class Somneo(object):
 
         alarm_settings = dict()
         alarm_settings['prfnr'] = self.data['alarms'][alarm]['position']    # Alarm number
-        alarm_settings['ctype'] = LIGHT_CURVES[curve]                   # Light curve type
+        alarm_settings['ctype'] = self.wake_light_themes[curve]                   # Light curve type
         alarm_settings['curve'] = level                                 # Light level (0 - 25, 0 is no light)
         alarm_settings['durat'] = duration                              # Duration in minutes (5 - 40)
 
@@ -257,7 +296,7 @@ class Somneo(object):
         alarm_settings = dict()
         alarm_settings['prfnr'] = self.data['alarms'][alarm]['position']                                # Alarm number
         alarm_settings['snddv'] = SOUND_SOURCE_ALARM[source]                                            # Source (radio of wake-up)
-        alarm_settings['sndch'] = SOUND_CHANNEL_ALARM[channel] if source == 'wake-up' else (' ' if source == 'off' else channel)    # Channel
+        alarm_settings['sndch'] = self.wake_sound_themes[channel] if source == 'wake-up' else (' ' if source == 'off' else channel)    # Channel
         alarm_settings['sndlv'] = level                                                                 # Sound level (1 - 25)
 
         # Send alarm settings
@@ -341,7 +380,7 @@ class Somneo(object):
         if duration:
             sunset_settings['durat'] = duration
         if curve:
-            sunset_settings['ctype'] = self.light_curves[curve.lower()]
+            sunset_settings['ctype'] = self.dusk_sound_themes[curve.lower()]
         if level:
             sunset_settings['curve'] = level
         if sound:
@@ -349,9 +388,10 @@ class Somneo(object):
                 sunset_settings['snddv'] = 'off'
             if sound[0:2] == 'fm':
                 sunset_settings['snddv'] = 'fmr'
+                sunset_settings['sndch'] = sound[-1]
             else:
                 sunset_settings['snddv'] = 'dus'
-            sunset_settings['sndch'] = SOUND_DUSK[sound.lower()]
+                sunset_settings['sndch'] = self.dusk_sound_themes[sound.lower()]
         if volume:
             sunset_settings['sndlv'] = volume
 

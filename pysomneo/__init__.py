@@ -98,6 +98,8 @@ class Somneo(object):
             if item['name']:
                 self._dusk_sound_themes.update({item['name'].lower(): idx+1})
 
+        _LOGGER.debug("Retrieve themes.")
+
     def get_device_info(self):
         """ Get Device information """
         try:

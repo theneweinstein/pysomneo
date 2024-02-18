@@ -45,7 +45,6 @@ def alarms_to_dict(enabled_alarms, time_alarms):
 
 def sunset_to_dict(sunset_data, light_curves, sounds):
     """Construct sunset data dictionary."""
-    print(sounds)
     data = dict()
     data['is_on'] = bool(sunset_data['onoff'])
     data['duration'] = int(sunset_data['durat'])

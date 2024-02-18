@@ -45,14 +45,14 @@ def alarms_to_dict(enabled_alarms, time_alarms):
 
 def sunset_to_dict(sunset_data, light_curves, sounds):
     """Construct sunset data dictionary."""
-    print(list(sounds.keys()))
+    print(sounds)
     data = dict()
     data['is_on'] = bool(sunset_data['onoff'])
     data['duration'] = int(sunset_data['durat'])
     data['curve'] = list(light_curves.keys())[list(light_curves.values()).index(sunset_data['ctype'])]
     data['level'] = sunset_data['curve']
     if sunset_data['snddv'] == 'dus':
-        data['sound'] = list(sounds.keys())[list(sounds.values()).index(sunset_data['sndch'])]
+        data['sound'] = list(sounds.keys())[list(sounds.values()).index(int(sunset_data['sndch']))]
     elif sunset_data['snddv'] == 'fmr':
         data['sound'] = 'fm ' + sunset_data['sndch']
     elif sunset_data['snddv'] == 'off':

@@ -43,6 +43,7 @@ class Somneo(object):
         """Get valid light curves for this light."""
         if len(self._wake_light_themes) == 0:
             self._get_themes()
+        _LOGGER.debug(self._wake_light_themes)
         return self._wake_light_themes
     
     @property
@@ -50,6 +51,7 @@ class Somneo(object):
         """Get valid dusk curves for this light."""
         if len(self._dusk_light_themes) == 0:
             self._get_themes()
+        _LOGGER.debug(self._dusk_light_themes)
         return self._dusk_light_themes
     
     @property
@@ -57,6 +59,7 @@ class Somneo(object):
         """Get valid wake-up sounds for this light."""
         if len(self._wake_sound_themes) == 0:
             self._get_themes()
+        _LOGGER.debug(self._wake_sound_themes)
         return self._wake_sound_themes
     
     @property
@@ -65,6 +68,7 @@ class Somneo(object):
         if len(self._dusk_sound_themes) == 0:
             self._get_themes()
             self._dusk_sound_themes.update({'fm 1': 1, 'fm 2': 2, 'fm 3': 3, 'fm 4': 4, 'fm 5': 5, 'off': 'off'})
+        _LOGGER.debug(self._dusk_sound_themes)
         return self._dusk_sound_themes
 
     def _get(self, url):

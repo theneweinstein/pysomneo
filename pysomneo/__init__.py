@@ -42,7 +42,7 @@ class Somneo(object):
     def wake_light_themes(self):
         """Get valid light curves for this light."""
         if len(self._wake_light_themes) == 0:
-            self._get_themes()
+            self.get_themes()
         _LOGGER.debug(self._wake_light_themes)
         return self._wake_light_themes
     
@@ -50,7 +50,7 @@ class Somneo(object):
     def dusk_light_themes(self):
         """Get valid dusk curves for this light."""
         if len(self._dusk_light_themes) == 0:
-            self._get_themes()
+            self.get_themes()
         _LOGGER.debug(self._dusk_light_themes)
         return self._dusk_light_themes
     
@@ -58,7 +58,7 @@ class Somneo(object):
     def wake_sound_themes(self):
         """Get valid wake-up sounds for this light."""
         if len(self._wake_sound_themes) == 0:
-            self._get_themes()
+            self.get_themes()
         _LOGGER.debug(self._wake_sound_themes)
         return self._wake_sound_themes
     
@@ -66,7 +66,7 @@ class Somneo(object):
     def dusk_sound_themes(self):
         """Get valid winddown sounds for this light."""
         if len(self._dusk_sound_themes) == 0:
-            self._get_themes()
+            self.get_themes()
         _LOGGER.debug(self._dusk_sound_themes)
         return self._dusk_sound_themes
 
@@ -76,7 +76,7 @@ class Somneo(object):
     def _put(self, url, payload=None):
         return put(self._session, url, payload=payload)
     
-    def _get_themes(self):
+    def get_themes(self):
         """Get themes."""
         response = self._get('files/lightthemes')
         for idx, item in enumerate(response.values()):
@@ -97,7 +97,6 @@ class Somneo(object):
         for idx, item in enumerate(response.values()):
             if item['name']:
                 self._dusk_sound_themes.update({item['name'].lower(): idx+1})
-        self._dusk_sound_themes.update({'fm 1': 1, 'fm 2': 2, 'fm 3': 3, 'fm 4': 4, 'fm 5': 5, 'off': 'off'})
 
     def get_device_info(self):
         """ Get Device information """
@@ -393,7 +392,7 @@ class Somneo(object):
                 sunset_settings['snddv'] = 'off'
             if sound[0:2] == 'fm':
                 sunset_settings['snddv'] = 'fmr'
-                sunset_settings['sndch'] = sound[-1]
+                sunset_settings['sndch'] = sound[3:]
             else:
                 sunset_settings['snddv'] = 'dus'
                 sunset_settings['sndch'] = self.dusk_sound_themes[sound.lower()]

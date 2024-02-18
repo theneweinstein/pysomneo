@@ -42,7 +42,7 @@ class Somneo(object):
     def wake_light_themes(self):
         """Get valid light curves for this light."""
         if len(self._wake_light_themes) == 0:
-            self.get_themes()
+            self._get_themes()
         _LOGGER.debug(self._wake_light_themes)
         return self._wake_light_themes
     
@@ -50,7 +50,7 @@ class Somneo(object):
     def dusk_light_themes(self):
         """Get valid dusk curves for this light."""
         if len(self._dusk_light_themes) == 0:
-            self.get_themes()
+            self._get_themes()
         _LOGGER.debug(self._dusk_light_themes)
         return self._dusk_light_themes
     
@@ -58,7 +58,7 @@ class Somneo(object):
     def wake_sound_themes(self):
         """Get valid wake-up sounds for this light."""
         if len(self._wake_sound_themes) == 0:
-            self.get_themes()
+            self._get_themes()
         _LOGGER.debug(self._wake_sound_themes)
         return self._wake_sound_themes
     
@@ -66,7 +66,7 @@ class Somneo(object):
     def dusk_sound_themes(self):
         """Get valid winddown sounds for this light."""
         if len(self._dusk_sound_themes) == 0:
-            self.get_themes()
+            self._get_themes()
         _LOGGER.debug(self._dusk_sound_themes)
         return self._dusk_sound_themes
 
@@ -76,7 +76,7 @@ class Somneo(object):
     def _put(self, url, payload=None):
         return put(self._session, url, payload=payload)
     
-    def get_themes(self):
+    def _get_themes(self):
         """Get themes."""
         response = self._get('files/lightthemes')
         for idx, item in enumerate(response.values()):

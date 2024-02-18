@@ -49,12 +49,12 @@ def sunset_to_dict(sunset_data, light_curves, sounds):
     data = dict()
     data['is_on'] = bool(sunset_data['onoff'])
     data['duration'] = int(sunset_data['durat'])
-    data['curve'] = list(light_curves.keys())[list(light_curves.values()).index(sunset_data['ctype'])]
+    data['curve'] = list(light_curves.keys())[list(light_curves.values()).index(int(sunset_data['ctype']))]
     data['level'] = sunset_data['curve']
     if sunset_data['snddv'] == 'dus':
         data['sound'] = list(sounds.keys())[list(sounds.values()).index(int(sunset_data['sndch']))]
     elif sunset_data['snddv'] == 'fmr':
-        data['sound'] = 'fm ' + sunset_data['sndch']
+        data['sound'] = 'fm ' + str(sunset_data['sndch'])
     elif sunset_data['snddv'] == 'off':
         data['sound'] = 'off'
     else:

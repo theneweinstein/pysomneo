@@ -386,7 +386,7 @@ class Somneo(object):
         if duration:
             sunset_settings['durat'] = duration
         if curve:
-            sunset_settings['ctype'] = self.dusk_sound_themes[curve.lower()]
+            sunset_settings['ctype'] = self.dusk_light_themes[curve.lower()]
         if level:
             sunset_settings['curve'] = level
         if sound:

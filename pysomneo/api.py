@@ -1,4 +1,4 @@
-from requests import Session, Timeout, ConnectionError, RequestException
+from requests import Session, request
 from urllib.parse import urljoin
 import json
 import logging
@@ -6,13 +6,18 @@ import logging
 _LOGGER = logging.getLogger('pysomneo')
 
 class SomneoSession(Session):
-    def __init__(self, base_url = None):
-        super().__init__()
+    def __init__(self, base_url = None, use_session = True):
+        if use_session: 
+            super().__init__()
+        self._use_session = use_session
         self.base_url = base_url
 
     def request(self, method: str | bytes, url: str | bytes, *args, **kwargs):
         joined_url = urljoin(self.base_url, url)
-        return super().request(method, joined_url, *args, **kwargs)
+        if self._use_session:
+            return super().request(method, joined_url, *args, **kwargs)
+        else:
+            return request(method, joined_url, *args, **kwargs)
 
 
 def internal_call(session, method, url, headers, payload):

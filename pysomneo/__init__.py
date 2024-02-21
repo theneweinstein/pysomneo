@@ -31,12 +31,12 @@ class Somneo(object):
     _dusk_sound_themes = {}
     
 
-    def __init__(self, host=None):
+    def __init__(self, host=None, use_session = True):
         """Initialize."""
         urllib3.disable_warnings()
         self._host = host
-        self._session = SomneoSession(base_url='https://' + host + '/di/v1/products/1/')
-        self.version = None
+        base_url = 'https://' + host + '/di/v1/products/1/'
+        self._session = SomneoSession(base_url=base_url, use_session=use_session)
         
     @property
     def wake_light_themes(self):

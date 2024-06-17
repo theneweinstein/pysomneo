@@ -156,6 +156,10 @@ class Somneo(object):
         # Somneo status
         self.data['somneo_status'] = STATUS.get(self.alarm_status['wusts'], 'unknown')
 
+        # Display status
+        self.data['display_always_on'] = bool(self.alarm_status['dspon'])
+        self.data['display_brightness'] = int(self.alarm_status['brght'])
+
         # Light status
         self.data['light_is_on'] = bool(self.light_data['onoff'])
         self.data['light_brightness'] = int(int(self.light_data['ltlvl']) / 25 * 255)

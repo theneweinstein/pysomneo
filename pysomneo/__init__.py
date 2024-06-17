@@ -458,3 +458,15 @@ class Somneo(object):
                        'tempy': False
                        }
                 )
+            
+    def set_display(self, state = None, brightness = None):
+        """ Toggle the light on or off """
+        if not self.alarm_status:
+            self.fetch_data()
+        
+        payload = dict()
+        payload['dspon'] = state if state else self.data['display_always_on']
+        payload['brght'] = brightness if brightness else self.data['display_brightness']
+
+        self.alarm_status = self._put('wusts', payload = payload)
+

@@ -85,8 +85,8 @@ class Somneo(object):
 
         response = self._get('files/dusklightthemes')
         for idx, item in enumerate(response.values()):
-            if item['name']:
-                self._dusk_light_themes.update({item['name'].lower(): idx})
+            # Empty name is a valid theme, so we add this as well if the response returns it
+            self._dusk_light_themes.update({item['name'].lower(): idx})
 
         response = self._get('files/wakeup')
         for idx, item in enumerate(response.values()):

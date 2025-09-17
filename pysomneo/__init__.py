@@ -1,5 +1,6 @@
 import requests
 import urllib3
+import time
 import xml.etree.ElementTree as ET
 import logging
 import datetime
@@ -16,28 +17,34 @@ class Somneo(object):
     Class represents the Somneo wake-up light.
     """
 
-    alarm_status = None
-    light_data = None
-    sensor_data = None
-    sunset_data = None
-    enabled_alarms = None
-    time_alarms = None
-    snoozetime = None
-    player = None
-    data = None
-    _wake_light_themes = {}
-    _dusk_light_themes = {}
-    _wake_sound_themes = {}
-    _dusk_sound_themes = {}
-    
-
-    def __init__(self, host=None, use_session = True):
+    def __init__(self, host=None, use_session = True, fast_interval = 10, slow_interval = 300):
         """Initialize."""
         urllib3.disable_warnings()
         self._host = host
-        base_url = 'https://' + host + '/di/v1/products/1/'
+        base_url = f'https://{host}/di/v1/products/1/'
         self._session = SomneoSession(base_url=base_url, use_session=use_session)
         
+        self.fast_interval = fast_interval
+        self.slow_interval = slow_interval
+        
+        self._last_sensor_fetch = 0
+        self._last_slow_fetch = 0
+        
+        self.data = {}
+
+        self.alarm_status = None
+        self.light_data = None
+        self.sensor_data = None
+        self.sunset_data = None
+        self.enabled_alarms = None
+        self.time_alarms = None
+        self.snoozetime = None
+        self.player = None 
+        self._wake_light_themes = {}
+        self._dusk_light_themes = {}
+        self._wake_sound_themes = {}
+        self._dusk_sound_themes = {}
+
     @property
     def wake_light_themes(self):
         """Get valid light curves for this light."""
@@ -139,55 +146,75 @@ class Somneo(object):
 
         return device_info
 
-    def fetch_data(self):
+    def fetch_data(self, force_slow_refresh = False):
         """Retrieve information from Somneo"""
-        
-        self.alarm_status = self._get('wusts')
-        self.light_data = self._get('wulgt')
-        self.sensor_data = self._get('wusrd')
-        self.sunset_data = self._get('wudsk')
-        self.enabled_alarms = self._get('wualm/aenvs')
-        self.time_alarms = self._get('wualm/aalms')
-        self.snoozetime = self._get('wualm')
-        self.player = self._get("wuply")
 
-        self.data = dict()
-    
-        # Somneo status
-        self.data['somneo_status'] = STATUS.get(self.alarm_status['wusts'], 'unknown')
+        now = time.time()
 
-        # Display status
-        self.data['display_always_on'] = bool(self.alarm_status['dspon'])
-        self.data['display_brightness'] = int(self.alarm_status['brght'])
+        # Sensor data is usefull to fetch more often
+        if now - self._last_sensor_fetch > self.fast_interval:
+            try:
+                self.sensor_data = self._get('wusrd')
+                self.data['temperature'] = self.sensor_data['mstmp']
+                self.data['humidity'] = self.sensor_data['msrhu']
+                self.data['luminance'] = self.sensor_data['mslux']
+                self.data['noise'] = self.sensor_data['mssnd']
+            except Exception as e:
+                _LOGGER.error(f"Error fetching fast endpoints: {e}")
+                raise
+            finally:
+                self._last_sensor_fetch = now
 
-        # Light status
-        self.data['light_is_on'] = bool(self.light_data['onoff'])
-        self.data['light_brightness'] = int(int(self.light_data['ltlvl']) / 25 * 255)
-        self.data['nightlight_is_on'] = bool(self.light_data['ngtlt'])
+        if now - self._last_slow_fetch > self.slow_interval or force_slow_refresh:
+            try:
+                self.alarm_status = self._get('wusts')
+                time.sleep(0.1)
+                self.light_data = self._get('wulgt')
+                time.sleep(0.1)
+                self.sunset_data = self._get('wudsk')
+                time.sleep(0.1)
+                self.enabled_alarms = self._get('wualm/aenvs')
+                time.sleep(0.1)
+                self.time_alarms = self._get('wualm/aalms')
+                time.sleep(0.1)
+                self.snoozetime = self._get('wualm')
+                time.sleep(0.1)
+                self.player = self._get("wuply")
 
-        # Alarms information
-        self.data['alarms'] = alarms_to_dict(self.enabled_alarms, self.time_alarms)
-        self.data['snooze_time'] = self.snoozetime['snztm']
-        self.data['next_alarm'] = next_alarm(self.data['alarms'])
+                # Somneo status
+                self.data['somneo_status'] = STATUS.get(self.alarm_status['wusts'], 'unknown')
 
-        # Sunset information
-        self.data['sunset'] = sunset_to_dict(self.sunset_data, self.dusk_light_themes, self.dusk_sound_themes)
+                # Display status
+                self.data['display_always_on'] = bool(self.alarm_status['dspon'])
+                self.data['display_brightness'] = int(self.alarm_status['brght'])
 
-        # Get player information
-        self.data['player'] = player_to_dict(self.player) 
+                # Light status
+                self.data['light_is_on'] = bool(self.light_data['onoff'])
+                self.data['light_brightness'] = int(int(self.light_data['ltlvl']) / 25 * 255)
+                self.data['nightlight_is_on'] = bool(self.light_data['ngtlt'])
 
-        # Sensor information
-        self.data['temperature'] = self.sensor_data['mstmp']
-        self.data['humidity'] = self.sensor_data['msrhu']
-        self.data['luminance'] = self.sensor_data['mslux']
-        self.data['noise'] = self.sensor_data['mssnd']
+                # Alarms information
+                self.data['alarms'] = alarms_to_dict(self.enabled_alarms, self.time_alarms)
+                self.data['snooze_time'] = self.snoozetime['snztm']
+                self.data['next_alarm'] = next_alarm(self.data['alarms'])
+
+                # Sunset information
+                self.data['sunset'] = sunset_to_dict(self.sunset_data, self.dusk_light_themes, self.dusk_sound_themes)
+
+                # Get player information
+                self.data['player'] = player_to_dict(self.player) 
+            except Exception as e:
+                _LOGGER.error(f"Error fetching slow endpoints: {e}")
+                raise
+            finally:
+                self._last_slow_fetch = now
 
         return self.data
     
     def toggle_light(self, state, brightness = None):
         """ Toggle the light on or off """
         if not self.light_data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
         
         payload = self.light_data
         payload['onoff'] = state
@@ -204,7 +231,7 @@ class Somneo(object):
     def toggle_night_light(self, state):
         """ Toggle the light on or off """
         if not self.light_data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         payload = self.light_data
         payload['onoff'] = False
@@ -227,7 +254,7 @@ class Somneo(object):
     def get_alarm_details(self, alarm):
         """ Get the alarm settings. """
         if not self.data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         # Get alarm position
         alarm_pos = self.data['alarms'][alarm]['position']
@@ -238,7 +265,7 @@ class Somneo(object):
     def toggle_alarm(self, alarm, status):
         """ Toggle the alarm on or off """
         if not self.data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
     
         # Send command to Somneo
         payload = dict()
@@ -253,7 +280,7 @@ class Somneo(object):
     def set_alarm(self, alarm, time = None, days = None):
         """ Set the time and day of an alarm. """
         if not self.data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         # Adjust alarm settings
         alarm_settings = dict()
@@ -287,7 +314,7 @@ class Somneo(object):
     def set_alarm_light(self, alarm, curve = 'sunny day', level = 20, duration = 30):
         """Adjust the lightcurve of the wake-up light"""
         if not self.data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         alarm_settings = dict()
         alarm_settings['prfnr'] = self.data['alarms'][alarm]['position']    # Alarm number
@@ -301,7 +328,7 @@ class Somneo(object):
     def set_alarm_sound(self, alarm, source = 'wake-up', channel = 'forest birds', level = 12):
         """Adjust the alarm sound of the wake-up light"""
         if not self.data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         alarm_settings = dict()
         alarm_settings['prfnr'] = self.data['alarms'][alarm]['position']                                # Alarm number
@@ -315,7 +342,7 @@ class Somneo(object):
     def set_alarm_powerwake(self, alarm, onoff = False, delta=0):
         """Set power wake"""
         if not self.data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         alarm_datetime = datetime.datetime.strptime(self.data['alarms'][alarm]['time'].isoformat(),'%H:%M:%S')
         powerwake_datetime = alarm_datetime + datetime.timedelta(minutes=delta)
@@ -339,7 +366,7 @@ class Somneo(object):
     def add_alarm(self, alarm):
         """Add alarm to the list"""
         if not self.data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         alarm_settings = dict()
         alarm_settings['prfnr'] = self.data['alarms'][alarm]['position']
@@ -351,7 +378,7 @@ class Somneo(object):
     def remove_alarm(self, alarm):
         """Remove alarm from the list"""
         if not self.data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         # Set default settings
         alarm_settings = dict()
@@ -383,7 +410,7 @@ class Somneo(object):
     def set_sunset(self, curve = None, level = None, duration = None, sound = None, volume = None):
         """Adjust the sunset settings of the wake-up light"""
         if not self.sensor_data:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         sunset_settings = self.sunset_data
 
@@ -411,7 +438,7 @@ class Somneo(object):
     def toggle_player(self, state: bool):
         """Toggle the audio player"""
         if not self.player:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         data = self.player
         data['onoff'] = state
@@ -429,7 +456,7 @@ class Somneo(object):
     def set_player_source(self, source: str | int):
         """Set the source of the player, either 'aux' or preset 1..5"""
         if not self.player:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
 
         previous_state = self.player['onoff']
         if source == 'aux' or source == 'AUX':
@@ -462,7 +489,7 @@ class Somneo(object):
     def set_display(self, state = None, brightness = None):
         """ Toggle the light on or off """
         if not self.alarm_status:
-            self.fetch_data()
+            self.fetch_data(force_slow_refresh=True)
         
         payload = dict()
         payload['dspon'] = state if state != None else self.data['display_always_on']

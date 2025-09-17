@@ -17,19 +17,19 @@ class Somneo(object):
     Class represents the Somneo wake-up light.
     """
 
-    def __init__(self, host=None, use_session = True, fast_interval = 10, slow_interval = 300):
+    def __init__(self, host=None, use_session = True, fast_interval = 10, slow_interval = 900):
         """Initialize."""
         urllib3.disable_warnings()
         self._host = host
         base_url = f'https://{host}/di/v1/products/1/'
         self._session = SomneoSession(base_url=base_url, use_session=use_session)
-        
+
         self.fast_interval = fast_interval
         self.slow_interval = slow_interval
-        
+
         self._last_sensor_fetch = 0
         self._last_slow_fetch = 0
-        
+
         self.data = {}
 
         self.alarm_status = None
@@ -44,6 +44,7 @@ class Somneo(object):
         self._dusk_light_themes = {}
         self._wake_sound_themes = {}
         self._dusk_sound_themes = {}
+        self.fetch_data()
 
     @property
     def wake_light_themes(self):
@@ -152,23 +153,26 @@ class Somneo(object):
         now = time.time()
 
         # Sensor data is usefull to fetch more often
-        if now - self._last_sensor_fetch > self.fast_interval:
+        if now - self._last_sensor_fetch >= self.fast_interval:
             try:
                 self.sensor_data = self._get('wusrd')
                 self.data['temperature'] = self.sensor_data['mstmp']
                 self.data['humidity'] = self.sensor_data['msrhu']
                 self.data['luminance'] = self.sensor_data['mslux']
                 self.data['noise'] = self.sensor_data['mssnd']
+
+                time.sleep(0.1)
+
+                self.alarm_status = self._get('wusts')
+                self.data['somneo_status'] = STATUS.get(self.alarm_status['wusts'], 'unknown')
             except Exception as e:
                 _LOGGER.error(f"Error fetching fast endpoints: {e}")
                 raise
             finally:
                 self._last_sensor_fetch = now
 
-        if now - self._last_slow_fetch > self.slow_interval or force_slow_refresh:
+        if now - self._last_slow_fetch >= self.slow_interval or force_slow_refresh:
             try:
-                self.alarm_status = self._get('wusts')
-                time.sleep(0.1)
                 self.light_data = self._get('wulgt')
                 time.sleep(0.1)
                 self.sunset_data = self._get('wudsk')
@@ -180,9 +184,6 @@ class Somneo(object):
                 self.snoozetime = self._get('wualm')
                 time.sleep(0.1)
                 self.player = self._get("wuply")
-
-                # Somneo status
-                self.data['somneo_status'] = STATUS.get(self.alarm_status['wusts'], 'unknown')
 
                 # Display status
                 self.data['display_always_on'] = bool(self.alarm_status['dspon'])
@@ -202,7 +203,7 @@ class Somneo(object):
                 self.data['sunset'] = sunset_to_dict(self.sunset_data, self.dusk_light_themes, self.dusk_sound_themes)
 
                 # Get player information
-                self.data['player'] = player_to_dict(self.player) 
+                self.data['player'] = player_to_dict(self.player)
             except Exception as e:
                 _LOGGER.error(f"Error fetching slow endpoints: {e}")
                 raise

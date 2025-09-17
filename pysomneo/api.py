@@ -1,3 +1,4 @@
+import time
 from requests import Session, request
 from urllib.parse import urljoin
 import json
@@ -20,32 +21,37 @@ class SomneoSession(Session):
             return request(method, joined_url, *args, **kwargs)
 
 
-def internal_call(session, method, url, headers, payload):
-    """Call to the API."""
-    args = dict()
+def internal_call(session, method, url, headers=None, payload=None, retries=3, backoff_factor=2):
+    """Call to the API with retries and exponential backoff."""
+    args = {}
 
     if payload:
-        args['data'] = json.dumps(payload)
+        args["data"] = json.dumps(payload)
 
     if headers:
-        args['headers'] = headers
+        args["headers"] = headers
 
-    for attempt in range(3):
+    for attempt in range(1, retries + 1):
         try:
             r = session.request(method, url, verify=False, timeout=20, **args)
-        except Exception as e:
-            if attempt == 2:
-                _LOGGER.error('Error connecting to somneo after 3 attempts.')
-                raise e
-            else:
-                continue
-        else:
-            if r.status_code == 422:
-                _LOGGER.error('Invalid URL.')
-                raise Exception("Invalid URL.")
-        break
 
-    return r.json()
+            if r.status_code == 422:
+                _LOGGER.error(f"Invalid URL: {url}")
+                raise Exception(f"Invalid URL: {url}")
+
+            r.raise_for_status()
+            return r.json()
+
+        except Exception as e:
+            if attempt < retries:
+                sleep_time = backoff_factor ** (attempt - 1)
+                _LOGGER.warning(
+                    f"Attempt {attempt} failed: {e}. Retrying in {sleep_time}s..."
+                )
+                time.sleep(sleep_time)
+            else:
+                _LOGGER.error(f"Error connecting to somneo after {retries} attempts.")
+                raise
 
 def get(session, url, payload=None):
     """Get request."""

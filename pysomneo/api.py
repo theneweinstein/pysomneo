@@ -25,7 +25,7 @@ class SomneoSession(Session):
         use_session: bool = True,
         request_timeout: float = 8.0,
         pool_connections: int = 1,
-        pool_maxsize: int = 1,
+        pool_maxsize: int = 3,
         adapter_retries: int = 0,
         adapter_backoff_factor: float = 0.1,
     ):
@@ -54,6 +54,7 @@ class SomneoSession(Session):
             pool_connections=self._pool_connections,
             pool_maxsize=self._pool_maxsize,
             max_retries=self._make_retry_strategy(),
+            pool_block=False,
         )
         # (re)mount adapters for both http and https
         self.mount("http://", adapter)
@@ -177,12 +178,14 @@ class SomneoClient:
             args["headers"] = headers
 
         r = self.session.request(method, path, verify=False, timeout=self.request_timeout, **args)
-
-        if r.status_code == 422:
-            _LOGGER.warning(f"Invalid URL: {path}")
-            raise ValueError(f"Invalid URL: {path}")
-        r.raise_for_status()
-        return r.json()
+        try:
+            if r.status_code == 422:
+                _LOGGER.warning(f"Invalid URL: {path}")
+                raise ValueError(f"Invalid URL: {path}")
+            r.raise_for_status()
+            return r.json()
+        finally:
+            r.close()
 
     def get(self, path: str):
         """Perform a GET request."""
@@ -204,6 +207,7 @@ class SomneoClient:
         ]
 
         for url in urls:
+            response = None
             try:
                 response = self.session.request('GET', url, verify=False, timeout=self.request_timeout)
                 response.raise_for_status()
@@ -214,6 +218,9 @@ class SomneoClient:
                 _LOGGER.warning("Connection failed for %s: %s", url, e)
             except ET.ParseError as e:
                 _LOGGER.warning("XML parsing failed for %s: %s", url, e)
+            finally:
+                if response is not None:
+                    response.close()
 
         # Return None if all attempts failed
         return None

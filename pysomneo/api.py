@@ -25,7 +25,7 @@ class SomneoSession(Session):
         use_session: bool = True,
         request_timeout: float = 8.0,
         pool_connections: int = 1,
-        pool_maxsize: int = 4,
+        pool_maxsize: int = 1,
         adapter_retries: int = 0,
         adapter_backoff_factor: float = 0.1,
     ):
@@ -112,8 +112,8 @@ class SomneoSession(Session):
                 last_exc = e
 
                 # On first ConnectionError attempt, try resetting the session pool immediately and retry.
-                if attempt == 1 and self._use_session:
-                    _LOGGER.info("Resetting session pool and retrying once for %s", full_url)
+                if attempt < max_attempts and self._use_session:
+                    _LOGGER.info("Resetting session pool (attempt %d) for %s", attempt, full_url)
                     try:
                         self._reset_session_pool()
                     except Exception as exc:
@@ -146,7 +146,7 @@ class SomneoSession(Session):
 
             # If not returned, apply exponential backoff before next attempt
             if attempt < max_attempts:
-                sleep = 0.5 * (2 ** (attempt - 1))  # 0.5s, 1s, 2s ...
+                sleep = 0.75 * (2 ** (attempt - 1))  # 0.75s, 1.5s, 3s ...
                 _LOGGER.debug("Sleeping %.2fs before next attempt to %s", sleep, full_url)
                 time.sleep(sleep)
 
@@ -160,7 +160,7 @@ class SomneoClient:
 
     def __init__(self, host: str, use_session: bool = True):
         urllib3.disable_warnings()
-        self.request_timeout = 8.0
+        self.request_timeout = 6.0
         self.host = host
         self.session = SomneoSession(
             base_url=f"https://{host}/di/v1/products/1/",

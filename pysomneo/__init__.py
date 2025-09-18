@@ -1,14 +1,11 @@
-import requests
-import urllib3
 import time
-import xml.etree.ElementTree as ET
 import logging
 import datetime
 import uuid
 
 _LOGGER = logging.getLogger('pysomneo')
 
-from .api import get, put, SomneoSession
+from .api import SomneoSession, SomneoClient
 from .const import *
 from .util import alarms_to_dict, next_alarm, days_list_to_int, sunset_to_dict, player_to_dict
 
@@ -19,10 +16,8 @@ class Somneo(object):
 
     def __init__(self, host=None, use_session = True, fast_interval = 10, slow_interval = 900):
         """Initialize."""
-        urllib3.disable_warnings()
         self._host = host
-        base_url = f'https://{host}/di/v1/products/1/'
-        self._session = SomneoSession(base_url=base_url, use_session=use_session)
+        self._client = SomneoClient(host=host, use_session=use_session)
 
         self.fast_interval = fast_interval
         self.slow_interval = slow_interval
@@ -77,31 +72,25 @@ class Somneo(object):
             self._get_themes()
         _LOGGER.debug(self._dusk_sound_themes)
         return self._dusk_sound_themes
-
-    def _get(self, url):
-        return get(self._session, url)
-    
-    def _put(self, url, payload=None):
-        return put(self._session, url, payload=payload)
     
     def _get_themes(self):
         """Get themes."""
-        response = self._get('files/lightthemes')
+        response = self._client.get('files/lightthemes')
         for idx, item in enumerate(response.values()):
             if item['name']:
                 self._wake_light_themes.update({item['name'].lower(): idx})
 
-        response = self._get('files/dusklightthemes')
+        response = self._client.get('files/dusklightthemes')
         for idx, item in enumerate(response.values()):
             # Empty name is a valid theme, so we add this as well if the response returns it
             self._dusk_light_themes.update({item['name'].lower(): idx})
 
-        response = self._get('files/wakeup')
+        response = self._client.get('files/wakeup')
         for idx, item in enumerate(response.values()):
             if item['name']:
                 self._wake_sound_themes.update({item['name'].lower(): idx+1})
 
-        response = self._get('files/winddowndusk')
+        response = self._client.get('files/winddowndusk')
         for idx, item in enumerate(response.values()):
             if item['name']:
                 self._dusk_sound_themes.update({item['name'].lower(): idx+1})
@@ -109,42 +98,28 @@ class Somneo(object):
         _LOGGER.debug("Retrieve themes.")
 
     def get_device_info(self):
-        """ Get Device information """
-        try:
-            response = self._session.request('GET', 'https://' + self._host + '/upnp/description.xml', verify=False, 
-                                             timeout=20)
-            
-            # Check if HTTPS gave valid response, otherwise probe http
+        """Get device information via SomneoClient, fallback to defaults if unavailable."""
+        # Default values if XML fetch fails
+        device_info = {
+            'manufacturer': 'Royal Philips Electronics',
+            'model': 'Wake-up Light',
+            'modelnumber': 'Unknown',
+            'serial': str(uuid.uuid1())
+        }
+
+        # Use the client to get the XML as an ElementTree root
+        root = self._client.get_description_xml()
+        if root is not None:
             try:
-                ET.fromstring(response.content)
-            except:
-                response = self._session.request('GET', 'http://' + self._host + '/upnp/description.xml', verify=False, 
-                                                 timeout=20)
-        except requests.Timeout:
-            _LOGGER.error('Connection to Somneo timed out.')
-            raise
-        except requests.RequestException:
-            _LOGGER.error('Error connecting to Somneo.')
-            raise
+                # Map XML elements to device_info
+                device_info['manufacturer'] = root[1][2].text
+                device_info['model'] = root[1][3].text
+                device_info['modelnumber'] = root[1][4].text
+                device_info['serial'] = root[1][6].text
+            except (IndexError, AttributeError) as e:
+                _LOGGER.warning("Failed to parse XML elements, using default device info: %s", e)
 
-        _LOGGER.debug(response.content)
-
-        # If no valid xml obtained from https and http, use default values.
-        try:
-            root = ET.fromstring(response.content)
-
-            device_info = dict()
-            device_info['manufacturer'] = root[1][2].text
-            device_info['model'] = root[1][3].text
-            device_info['modelnumber'] = root[1][4].text
-            device_info['serial'] = root[1][6].text
-        except:
-            device_info = dict()
-            device_info['manufacturer'] = 'Royal Philips Electronics'
-            device_info['model'] = 'Wake-up Light'
-            device_info['modelnumber'] = 'Unknown'
-            device_info['serial'] = str(uuid.uuid1())
-
+        _LOGGER.debug("Device info: %s", device_info)
         return device_info
 
     def fetch_data(self, force_slow_refresh = False):
@@ -155,7 +130,7 @@ class Somneo(object):
         # Sensor data is usefull to fetch more often
         if now - self._last_sensor_fetch >= self.fast_interval:
             try:
-                self.sensor_data = self._get('wusrd')
+                self.sensor_data = self._client.get('wusrd')
                 self.data['temperature'] = self.sensor_data['mstmp']
                 self.data['humidity'] = self.sensor_data['msrhu']
                 self.data['luminance'] = self.sensor_data['mslux']
@@ -163,7 +138,7 @@ class Somneo(object):
 
                 time.sleep(0.1)
 
-                self.alarm_status = self._get('wusts')
+                self.alarm_status = self._client.get('wusts')
                 self.data['somneo_status'] = STATUS.get(self.alarm_status['wusts'], 'unknown')
             except Exception as e:
                 _LOGGER.error(f"Error fetching fast endpoints: {e}")
@@ -173,17 +148,17 @@ class Somneo(object):
 
         if now - self._last_slow_fetch >= self.slow_interval or force_slow_refresh:
             try:
-                self.light_data = self._get('wulgt')
+                self.light_data = self._client.get('wulgt')
                 time.sleep(0.1)
-                self.sunset_data = self._get('wudsk')
+                self.sunset_data = self._client.get('wudsk')
                 time.sleep(0.1)
-                self.enabled_alarms = self._get('wualm/aenvs')
+                self.enabled_alarms = self._client.get('wualm/aenvs')
                 time.sleep(0.1)
-                self.time_alarms = self._get('wualm/aalms')
+                self.time_alarms = self._client.get('wualm/aalms')
                 time.sleep(0.1)
-                self.snoozetime = self._get('wualm')
+                self.snoozetime = self._client.get('wualm')
                 time.sleep(0.1)
-                self.player = self._get("wuply")
+                self.player = self._client.get("wuply")
 
                 # Display status
                 self.data['display_always_on'] = bool(self.alarm_status['dspon'])
@@ -227,7 +202,7 @@ class Somneo(object):
         if 'wucrv' in payload:
             payload.pop('wucrv')
 
-        self.light_data = self._put('wulgt', payload = payload)
+        self.light_data = self._client.put('wulgt', payload = payload)
 
     def toggle_night_light(self, state):
         """ Toggle the light on or off """
@@ -242,15 +217,15 @@ class Somneo(object):
         if 'wucrv' in payload:
             payload.pop('wucrv')
 
-        self.light_data = self._put('wulgt', payload=payload)
+        self.light_data = self._client.put('wulgt', payload=payload)
 
     def dismiss_alarm(self):
         """ Dismiss a running alarm. """
-        self._put('wualm/alctr', payload={'disms':True})
+        self._client.put('wualm/alctr', payload={'disms':True})
 
     def snooze_alarm(self):
         """ Snooze a running alarm. """
-        self._put('wualm/alctr', payload={'tapsz':True})
+        self._client.put('wualm/alctr', payload={'tapsz':True})
 
     def get_alarm_details(self, alarm):
         """ Get the alarm settings. """
@@ -261,19 +236,19 @@ class Somneo(object):
         alarm_pos = self.data['alarms'][alarm]['position']
 
         # Get current alarm settings
-        return self._put('wualm',payload={'prfnr':alarm_pos})
-    
+        return self._client.put('wualm',payload={'prfnr':alarm_pos})
+
     def toggle_alarm(self, alarm, status):
         """ Toggle the alarm on or off """
         if not self.data:
             self.fetch_data(force_slow_refresh=True)
-    
+
         # Send command to Somneo
         payload = dict()
         payload['prfnr'] = self.data['alarms'][alarm]['position']
         payload['prfvs'] = True
         payload['prfen'] = status
-        self._put('wualm/prfwu', payload=payload)
+        self._client.put('wualm/prfwu', payload=payload)
 
         # Update data
         self.data['alarms'][alarm]['enabled'] = status
@@ -310,8 +285,8 @@ class Somneo(object):
             alarm_settings['pszmn'] = powerwake_datetime.minute
 
         # Send alarm settings
-        self._put('wualm/prfwu', payload=alarm_settings)
-    
+        self._client.put('wualm/prfwu', payload=alarm_settings)
+
     def set_alarm_light(self, alarm, curve = 'sunny day', level = 20, duration = 30):
         """Adjust the lightcurve of the wake-up light"""
         if not self.data:
@@ -324,7 +299,7 @@ class Somneo(object):
         alarm_settings['durat'] = duration                              # Duration in minutes (5 - 40)
 
         # Send alarm settings
-        self._put('wualm/prfwu', payload=alarm_settings)
+        self._client.put('wualm/prfwu', payload=alarm_settings)
 
     def set_alarm_sound(self, alarm, source = 'wake-up', channel = 'forest birds', level = 12):
         """Adjust the alarm sound of the wake-up light"""
@@ -338,7 +313,7 @@ class Somneo(object):
         alarm_settings['sndlv'] = level                                                                 # Sound level (1 - 25)
 
         # Send alarm settings
-        self._put('wualm/prfwu', payload=alarm_settings) 
+        self._client.put('wualm/prfwu', payload=alarm_settings)
 
     def set_alarm_powerwake(self, alarm, onoff = False, delta=0):
         """Set power wake"""
@@ -358,11 +333,11 @@ class Somneo(object):
         self.data['alarms'][alarm]['powerwake_delta'] = delta if onoff else 0
 
         # Send alarm settings
-        self._put('wualm/prfwu', payload=alarm_settings) 
+        self._client.put('wualm/prfwu', payload=alarm_settings) 
 
     def set_snooze_time(self, snooze_time = 9):
         """Adjust the snooze time (minutes) of all alarms"""
-        self.snoozetime = self._put('wualm', payload={'snztm': snooze_time})
+        self.snoozetime = self._client.put('wualm', payload={'snztm': snooze_time})
 
     def add_alarm(self, alarm):
         """Add alarm to the list"""
@@ -374,7 +349,7 @@ class Somneo(object):
         alarm_settings['prfvs'] = True  # Add alarm
 
         # Send alarm settings
-        self._put('wualm/prfwu', payload=alarm_settings) 
+        self._client.put('wualm/prfwu', payload=alarm_settings) 
 
     def remove_alarm(self, alarm):
         """Remove alarm from the list"""
@@ -400,13 +375,13 @@ class Somneo(object):
         alarm_settings['sndlv'] = 12   # set sound level
 
         # Send alarm settings
-        self._put('wualm/prfwu', payload=alarm_settings) 
+        self._client.put('wualm/prfwu', payload=alarm_settings) 
 
     def toggle_sunset(self, status):
         """ Toggle the sunset feature on or off """
         payload = dict()
         payload['onoff'] = status
-        self.sunset_data = self._put('wudsk', payload=payload)
+        self.sunset_data = self._client.put('wudsk', payload=payload)
 
     def set_sunset(self, curve = None, level = None, duration = None, sound = None, volume = None):
         """Adjust the sunset settings of the wake-up light"""
@@ -434,8 +409,8 @@ class Somneo(object):
             sunset_settings['sndlv'] = volume
 
         # Send alarm settings
-        self.sunset_data = self._put('wudsk', payload=sunset_settings)
-    
+        self.sunset_data = self._client.put('wudsk', payload=sunset_settings)
+
     def toggle_player(self, state: bool):
         """Toggle the audio player"""
         if not self.player:
@@ -443,7 +418,7 @@ class Somneo(object):
 
         data = self.player
         data['onoff'] = state
-        self.player = self._put('wuply', payload=data)
+        self.player = self._client.put('wuply', payload=data)
 
     def set_player_volume(self, volume: float):
         """Set the volume of the player (0..1)"""
@@ -452,7 +427,7 @@ class Somneo(object):
         if volume > 1:
             volume = 1
 
-        self.player = self._put('wuply', payload={'sdvol': int(volume * 24 + 1)})
+        self.player = self._client.put('wuply', payload={'sdvol': int(volume * 24 + 1)})
 
     def set_player_source(self, source: str | int):
         """Set the source of the player, either 'aux' or preset 1..5"""
@@ -461,16 +436,16 @@ class Somneo(object):
 
         previous_state = self.player['onoff']
         if source == 'aux' or source == 'AUX':
-            self.player = self._put('wuply', payload=
-                      {'snddv': 'aux', 
+            self.player = self._client.put('wuply', payload=
+                      {'snddv': 'aux',
                        'sndss': 0,
                        'onoff': previous_state,
                        'tempy': False
                     }
                 )
             # Repeat command for some unknown reason
-            self.player = self._put('wuply', payload=
-                      {'snddv': 'aux', 
+            self.player = self._client.put('wuply', payload=
+                      {'snddv': 'aux',
                        'sndss': 0,
                        'onoff': previous_state,
                        'tempy': False
@@ -478,23 +453,22 @@ class Somneo(object):
                 )
 
         elif source in range(1,6):
-            self.player = self._put('wuply', payload=
-                      {'snddv': 'fmr', 
+            self.player = self._client.put('wuply', payload=
+                      {'snddv': 'fmr',
                        'sndch': str(source),
                        'sndss': 0,
                        'onoff': self.player['onoff'],
                        'tempy': False
                        }
                 )
-            
+
     def set_display(self, state = None, brightness = None):
         """ Toggle the light on or off """
         if not self.alarm_status:
             self.fetch_data(force_slow_refresh=True)
-        
+
         payload = dict()
         payload['dspon'] = state if state != None else self.data['display_always_on']
         payload['brght'] = brightness if brightness else self.data['display_brightness']
 
-        self.alarm_status = self._put('wusts', payload = payload)
-
+        self.alarm_status = self._client.put('wusts', payload = payload)

@@ -40,7 +40,6 @@ class Somneo(object):
         self._dusk_light_themes = {}
         self._wake_sound_themes = {}
         self._dusk_sound_themes = {}
-        self.fetch_data()
 
     @property
     def wake_light_themes(self):

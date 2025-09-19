@@ -8,7 +8,13 @@ import xml.etree.ElementTree as ET
 import json
 import logging
 
+from .const import *
+
 _LOGGER = logging.getLogger('pysomneo')
+
+class SomneoInvalidURLError(exceptions.RequestException):
+    """Raised when the Somneo device responds with 422 Invalid URL."""
+    pass
 
 class SomneoSession(Session):
     """
@@ -99,6 +105,8 @@ class SomneoSession(Session):
                     resp = super().request(method, full_url, *args, **kwargs)
                 else:
                     resp = request(method, full_url, *args, **kwargs)
+                if resp.status_code == 422:
+                    raise SomneoInvalidURLError(f"Invalid URL: {full_url}", response=resp)
                 return resp
 
             except exceptions.ConnectionError as e:
@@ -177,17 +185,16 @@ class SomneoClient:
         if headers:
             args["headers"] = headers
 
-        r = self.session.request(method, path, verify=False, timeout=self.request_timeout, **args)
+        r = None
         try:
-            if r.status_code == 422:
-                _LOGGER.warning(f"Invalid URL: {path}")
-                raise ValueError(f"Invalid URL: {path}")
+            r = self.session.request(method, path, verify=False, timeout=self.request_timeout, **args)
             r.raise_for_status()
             return r.json()
         finally:
-            r.close()
+            if r is not None:
+                r.close()
 
-    def get(self, path: str):
+    def _get(self, path: str):
         """Perform a GET request."""
         return self._internal_call("GET", path)
 
@@ -224,3 +231,66 @@ class SomneoClient:
 
         # Return None if all attempts failed
         return None
+
+    def get_themes(self) -> dict[str, dict[str, int]]:
+        """Get available light and sound themes as a dictionary."""
+
+        return {
+            "wake_light": {
+                item["name"].lower(): idx
+                for idx, item in enumerate(self._get("files/lightthemes").values())
+                if item["name"]
+            },
+            "dusk_light": {
+                item["name"].lower(): idx
+                for idx, item in enumerate(self._get("files/dusklightthemes").values())
+            },
+            "wake_sound": {
+                item["name"].lower(): idx + 1
+                for idx, item in enumerate(self._get("files/wakeup").values())
+                if item["name"]
+            },
+            "dusk_sound": {
+                item["name"].lower(): idx + 1
+                for idx, item in enumerate(self._get("files/winddowndusk").values())
+                if item["name"]
+            },
+        }
+
+    def get_sensor_data(self):
+        """Get sensor data as a dictionary."""
+        data = self._get("wusrd")
+        return {
+            "temperature": data.get("mstmp"),
+            "humidity": data.get("msrhu"),
+            "luminance": data.get("mslux"),
+            "noise": data.get("mssnd"),
+        }
+
+    def get_alarm_status(self):
+        """Get alarm status"""
+        return self._get("wusts")
+
+    def get_light_data(self):
+        """Get light data"""
+        return self._get("wulgt")
+
+    def get_sunset_data(self):
+        """Get sunset data"""
+        return self._get("wudsk")
+
+    def get_enabled_alarms(self):
+        """Get enabled alarms"""
+        return self._get("wualm/aenvs")
+
+    def get_time_alarms(self):
+        """Get time alarms"""
+        return self._get("wualm/aalms")
+
+    def get_snooze_time(self):
+        """Get snooze time"""
+        return self._get("wualm")
+
+    def get_player_status(self):
+        """Get player status"""
+        return self._get("wuply")

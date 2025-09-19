@@ -541,4 +541,4 @@ class Somneo(object):
         _LOGGER.debug("PUT set_display response=%s", self.alarm_status)
         self._update_alarm_status()
 
-__all__ = ["Somneo", "SomneoClient"]
+__all__ = ["Somneo"]

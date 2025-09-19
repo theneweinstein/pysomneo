@@ -14,7 +14,7 @@ class Somneo(object):
     Class represents the Somneo wake-up light.
     """
 
-    def __init__(self, host=None, use_session = True, fast_interval = 5, slow_interval = 900):
+    def __init__(self, host=None, use_session = True, fast_interval = 5, slow_interval = 60):
         """Initialize."""
         self._host = host
         self._client = SomneoClient(host=host, use_session=use_session)

@@ -3,14 +3,14 @@ import logging
 import datetime
 import uuid
 
-_LOGGER = logging.getLogger('pysomneo')
-
 from .api import SomneoClient
 from .const import *
 from .util import alarms_to_dict, next_alarm, days_list_to_int, sunset_to_dict, player_to_dict
 
+_LOGGER = logging.getLogger('pysomneo')
+
 class Somneo(object):
-    """ 
+    """
     Class represents the Somneo wake-up light.
     """
 
@@ -110,7 +110,7 @@ class Somneo(object):
 
     def fetch_data(self, force_slow_refresh = False):
         """Retrieve information from Somneo"""
-
+        _LOGGER.debug("Calling Somneo.fetch_data()")
         now = time.time()
 
         # Sensor data is usefull to fetch more often
@@ -169,8 +169,8 @@ class Somneo(object):
     def _update_sunset_data(self):
         """ Update sunset data in data object"""
         self.data['sunset'] = sunset_to_dict(
-            self.sunset_data, 
-            self.dusk_light_themes, 
+            self.sunset_data,
+            self.dusk_light_themes,
             self.dusk_sound_themes
         )
 

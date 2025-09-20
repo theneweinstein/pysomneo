@@ -27,7 +27,7 @@ DAYS_TYPE = {0: "tomorrow", 62: "workdays", 192: "weekend", 254: "daily"}
 
 STATUS = {
     1: "off",
-    257: "on",
+    257: "light-on",
     777: "sunset",
     2321: "snooze",
     2309: "wake-up",

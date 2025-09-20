@@ -171,11 +171,9 @@ class SomneoSession(Session):
 
         # All attempts failed — raise last exception to caller
         _LOGGER.error("All %d attempts failed for %s", max_attempts, full_url)
-        raise (
-            last_exc
-            if last_exc is not None
-            else exceptions.RequestException("Unknown error in SomneoSession.request")
-        )
+        if last_exc is not None:
+            raise last_exc
+        raise exceptions.RequestException("Unknown error in SomneoSession.request")
 
 
 class SomneoClient:

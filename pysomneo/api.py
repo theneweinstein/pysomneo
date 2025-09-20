@@ -1,20 +1,21 @@
 import time
+import logging
+import xml.etree.ElementTree as ET
+from typing import Any
+from urllib.parse import urljoin
+import urllib3
+from urllib3.util.retry import Retry
+
 from requests import Session, request, exceptions
 from requests.adapters import HTTPAdapter
-import urllib3
-from urllib.parse import urljoin
-from urllib3.util.retry import Retry
-import xml.etree.ElementTree as ET
-import json
-import logging
+from requests.exceptions import RequestException
 
-from .const import *
+_LOGGER = logging.getLogger("pysomneo")
 
-_LOGGER = logging.getLogger('pysomneo')
 
-class SomneoInvalidURLError(exceptions.RequestException):
+class SomneoInvalidURLError(RequestException):
     """Raised when the Somneo device responds with 422 Invalid URL."""
-    pass
+
 
 class SomneoSession(Session):
     """
@@ -79,7 +80,7 @@ class SomneoSession(Session):
         # Re-mount adapters after re-init
         self._mount_adapter()
 
-    def request(self, method: str, url: str, *args, **kwargs):
+    def request(self, method, url, **kwargs):
         """
         Override request to:
           - join base_url,
@@ -97,21 +98,25 @@ class SomneoSession(Session):
             kwargs["timeout"] = self._request_timeout
 
         max_attempts = 3
-        last_exc = None
+        last_exc: RequestException | None = None
 
         for attempt in range(1, max_attempts + 1):
             try:
                 if self._use_session:
-                    resp = super().request(method, full_url, *args, **kwargs)
+                    resp = super().request(method, full_url, **kwargs)
                 else:
-                    resp = request(method, full_url, *args, **kwargs)
+                    resp = request(
+                        method, full_url, timeout=self._request_timeout, **kwargs
+                    )
                 if resp.status_code == 422:
-                    raise SomneoInvalidURLError(f"Invalid URL: {full_url}", response=resp)
+                    raise SomneoInvalidURLError(
+                        f"Invalid URL: {full_url}", response=resp
+                    )
                 return resp
 
             except exceptions.ConnectionError as e:
                 # This is the important case: remote refused or underlying socket invalid
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "ConnectionError (attempt %d/%d) to %s: %s",
                     attempt,
                     max_attempts,
@@ -120,12 +125,15 @@ class SomneoSession(Session):
                 )
                 last_exc = e
 
-                # On first ConnectionError attempt, try resetting the session pool immediately and retry.
+                # On first ConnectionError attempt, try resetting
+                # the session pool immediately and retry.
                 if attempt < max_attempts and self._use_session:
-                    _LOGGER.info("Resetting session pool (attempt %d) for %s", attempt, full_url)
+                    _LOGGER.info(
+                        "Resetting session pool (attempt %d) for %s", attempt, full_url
+                    )
                     try:
                         self._reset_session_pool()
-                    except Exception as exc:
+                    except (OSError, RuntimeError) as exc:
                         _LOGGER.debug("Session reset failed: %s", exc)
                     # immediate retry loop continues
                     continue
@@ -133,7 +141,7 @@ class SomneoSession(Session):
                 # otherwise fall through to backoff and retry
 
             except exceptions.Timeout as e:
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "Timeout (attempt %d/%d) when calling %s: %s",
                     attempt,
                     max_attempts,
@@ -144,7 +152,7 @@ class SomneoSession(Session):
 
             except exceptions.RequestException as e:
                 # Generic requests exceptions (HTTPError will be raised after response)
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "RequestException (attempt %d/%d) when calling %s: %s",
                     attempt,
                     max_attempts,
@@ -156,12 +164,18 @@ class SomneoSession(Session):
             # If not returned, apply exponential backoff before next attempt
             if attempt < max_attempts:
                 sleep = 0.75 * (2 ** (attempt - 1))  # 0.75s, 1.5s, 3s ...
-                _LOGGER.debug("Sleeping %.2fs before next attempt to %s", sleep, full_url)
+                _LOGGER.debug(
+                    "Sleeping %.2fs before next attempt to %s", sleep, full_url
+                )
                 time.sleep(sleep)
 
         # All attempts failed — raise last exception to caller
         _LOGGER.error("All %d attempts failed for %s", max_attempts, full_url)
-        raise last_exc if last_exc is not None else exceptions.RequestException("Unknown error in SomneoSession.request")
+        raise (
+            last_exc
+            if last_exc is not None
+            else exceptions.RequestException("Unknown error in SomneoSession.request")
+        )
 
 
 class SomneoClient:
@@ -169,7 +183,7 @@ class SomneoClient:
 
     def __init__(self, host: str, use_session: bool = True):
         urllib3.disable_warnings()
-        self.request_timeout = 6.0
+        self.request_timeout = 8.0
         self.host = host
         self.session = SomneoSession(
             base_url=f"https://{host}/di/v1/products/1/",
@@ -177,17 +191,25 @@ class SomneoClient:
             request_timeout=self.request_timeout,
         )
 
-    def _internal_call(self, method: str, path: str, headers: dict | None = None, payload: dict | None = None):
+    def _internal_call(
+        self,
+        method: str,
+        path: str,
+        headers: dict[str, str] | None = None,
+        payload: dict[str, Any] | None = None,
+    ):
         """Internal call to the device reusing SomneoSession"""
-        args = {}
+        args: dict[str, Any] = {}
         if payload:
-            args["data"] = json.dumps(payload)
+            args["json"] = payload
         if headers:
             args["headers"] = headers
 
         r = None
         try:
-            r = self.session.request(method, path, verify=False, timeout=self.request_timeout, **args)
+            r = self.session.request(
+                method, path, verify=False, timeout=self.request_timeout, **args
+            )
             r.raise_for_status()
             return r.json()
         finally:
@@ -198,9 +220,9 @@ class SomneoClient:
         """Perform a GET request."""
         return self._internal_call("GET", path)
 
-    def put(self, path: str, payload: dict):
+    def put(self, path: str, payload: dict[str, Any]) -> Any:
         """Perform a PUT request with JSON payload."""
-        return self._internal_call("PUT", path, headers={"Content-Type": "application/json"}, payload=payload)
+        return self._internal_call("PUT", path, payload=payload)
 
     def get_description_xml(self):
         """
@@ -209,25 +231,34 @@ class SomneoClient:
         Returns raw XML content.
         """
         urls = [
-            f'https://{self.host}/upnp/description.xml',
-            f'http://{self.host}/upnp/description.xml'
+            f"https://{self.host}/upnp/description.xml",
+            f"http://{self.host}/upnp/description.xml",
         ]
 
+        last_exc = None
         for url in urls:
             response = None
             try:
-                response = self.session.request('GET', url, verify=False, timeout=self.request_timeout)
+                response = self.session.request(
+                    "GET", url, verify=False, timeout=self.request_timeout
+                )
                 response.raise_for_status()
                 # Try parsing immediately to ensure it's valid XML
                 root = ET.fromstring(response.content)
                 return root
+
             except exceptions.RequestException as e:
-                _LOGGER.warning("Connection failed for %s: %s", url, e)
+                _LOGGER.debug("Connection failed for %s: %s", url, e)
+                last_exc = e
             except ET.ParseError as e:
-                _LOGGER.warning("XML parsing failed for %s: %s", url, e)
+                _LOGGER.debug("XML parsing failed for %s: %s", url, e)
+                last_exc = e
             finally:
                 if response is not None:
                     response.close()
+
+        if last_exc is not None:
+            raise last_exc
 
         # Return None if all attempts failed
         return None

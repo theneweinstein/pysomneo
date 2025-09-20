@@ -10,9 +10,9 @@ from urllib.parse import urljoin
 import urllib3
 from urllib3.util.retry import Retry
 
-from requests import Session, request, exceptions
+from requests import Session, request
 from requests.adapters import HTTPAdapter
-from requests.exceptions import RequestException
+from requests.exceptions import ConnectTimeout, ReadTimeout, RequestException, Timeout
 
 _LOGGER = logging.getLogger("pysomneo")
 
@@ -118,19 +118,16 @@ class SomneoSession(Session):
                     )
                 return resp
 
-            except exceptions.ConnectionError as e:
-                # This is the important case: remote refused or underlying socket invalid
+            except ConnectTimeout as e:
                 _LOGGER.debug(
-                    "ConnectionError (attempt %d/%d) to %s: %s",
+                    "ConnectTimeout (attempt %d/%d) when calling %s: %s",
                     attempt,
                     max_attempts,
                     full_url,
                     e,
                 )
                 last_exc = e
-
-                # On first ConnectionError attempt, try resetting
-                # the session pool immediately and retry.
+                # try resetting the session pool immediately and retry.
                 if attempt < max_attempts and self._use_session:
                     _LOGGER.info(
                         "Resetting session pool (attempt %d) for %s", attempt, full_url
@@ -142,9 +139,40 @@ class SomneoSession(Session):
                     # immediate retry loop continues
                     continue
 
-                # otherwise fall through to backoff and retry
+            except ReadTimeout as e:
+                # This is the important case: remote refused or underlying socket invalid
+                _LOGGER.debug(
+                    "ReadTimeout (attempt %d/%d) to %s: %s",
+                    attempt,
+                    max_attempts,
+                    full_url,
+                    e,
+                )
+                last_exc = e
 
-            except exceptions.Timeout as e:
+            except ConnectionError as e:
+                # This is the important case: remote refused or underlying socket invalid
+                _LOGGER.debug(
+                    "ConnectionError (attempt %d/%d) to %s: %s",
+                    attempt,
+                    max_attempts,
+                    full_url,
+                    e,
+                )
+                last_exc = e
+                # try resetting the session pool immediately and retry.
+                if attempt < max_attempts and self._use_session:
+                    _LOGGER.info(
+                        "Resetting session pool (attempt %d) for %s", attempt, full_url
+                    )
+                    try:
+                        self._reset_session_pool()
+                    except (OSError, RuntimeError) as exc:
+                        _LOGGER.debug("Session reset failed: %s", exc)
+                    # immediate retry loop continues
+                    continue
+
+            except Timeout as e:
                 _LOGGER.debug(
                     "Timeout (attempt %d/%d) when calling %s: %s",
                     attempt,
@@ -154,7 +182,7 @@ class SomneoSession(Session):
                 )
                 last_exc = e
 
-            except exceptions.RequestException as e:
+            except RequestException as e:
                 # Generic requests exceptions (HTTPError will be raised after response)
                 _LOGGER.debug(
                     "RequestException (attempt %d/%d) when calling %s: %s",
@@ -177,7 +205,7 @@ class SomneoSession(Session):
         _LOGGER.error("All %d attempts failed for %s", max_attempts, full_url)
         if last_exc is not None:
             raise last_exc
-        raise exceptions.RequestException("Unknown error in SomneoSession.request")
+        raise RequestException("Unknown error in SomneoSession.request")
 
 
 class SomneoClient:
@@ -249,7 +277,7 @@ class SomneoClient:
                 root = ET.fromstring(response.content)
                 return root
 
-            except exceptions.RequestException as e:
+            except RequestException as e:
                 _LOGGER.debug("Connection failed for %s: %s", url, e)
                 last_exc = e
             except ET.ParseError as e:

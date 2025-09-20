@@ -36,7 +36,7 @@ class SomneoSession(Session):
         use_session: bool = True,
         request_timeout: float = 8.0,
         pool_connections: int = 1,
-        pool_maxsize: int = 3,
+        pool_maxsize: int = 1,
         adapter_retries: int = 0,
         adapter_backoff_factor: float = 0.1,
     ):

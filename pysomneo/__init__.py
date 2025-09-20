@@ -467,7 +467,10 @@ class Somneo(object):
         _LOGGER.debug("PUT toggle_sunset payload=%s", payload)
         self.sunset_data = self._client.put("wudsk", payload=payload)
         _LOGGER.debug("PUT toggle_sunset response=%s", self.sunset_data)
-        self._update_sunset_data()
+        time.sleep(0.1)  # Short delay to allow the device to process
+        # The response of the put command is incomplete, so sent a new request 
+        # before updating internal state
+        self._fetch_sunset_data()
 
     def set_sunset(
         self, curve=None, level=None, duration=None, sound=None, volume=None

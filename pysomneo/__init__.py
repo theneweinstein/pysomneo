@@ -1,3 +1,8 @@
+"""
+Main Somneo class, represents the state of the Somneo wake-up light
+and provides methods to interact with it.
+"""
+
 import time
 import logging
 import datetime

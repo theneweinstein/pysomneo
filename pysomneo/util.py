@@ -1,3 +1,7 @@
+"""
+Utility functions for pysomneo.
+"""
+
 import calendar
 from datetime import time, date, timedelta, datetime
 

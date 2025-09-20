@@ -1,3 +1,7 @@
+"""
+Philips Somneo API client using requests with connection pooling, retries, and session management.
+"""
+
 import time
 import logging
 import xml.etree.ElementTree as ET
@@ -98,7 +102,7 @@ class SomneoSession(Session):
             kwargs["timeout"] = self._request_timeout
 
         max_attempts = 3
-        last_exc: RequestException | None = None
+        last_exc = None
 
         for attempt in range(1, max_attempts + 1):
             try:

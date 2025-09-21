@@ -107,10 +107,10 @@ class SomneoSession(Session):
         elif isinstance(e, ReadTimeout):
             return "ReadTimeout", False, 2.0
         elif isinstance(e, ConnectionError):
-            if isinstance(e.__cause__, NewConnectionError):
-                return "NewConnectionError", True, 0.25
-            else:
-                return "ConnectionError", True, 1.0
+            if isinstance(getattr(e, "__cause__", None), NewConnectionError) or \
+               "NewConnectionError" in str(e):
+                return "NewConnectionError", True, 1.5
+            return "ConnectionError", True, 1.0
         elif isinstance(e, Timeout):
             return "Timeout", False, 0.5
         else:  # fallback for other RequestExceptions

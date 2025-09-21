@@ -9,10 +9,17 @@ from typing import Any
 from urllib.parse import urljoin
 import urllib3
 from urllib3.util.retry import Retry
+from urllib3.exceptions import NewConnectionError
 
 from requests import Session, request
 from requests.adapters import HTTPAdapter
-from requests.exceptions import ConnectTimeout, ReadTimeout, RequestException, Timeout
+from requests.exceptions import (
+    ConnectTimeout,
+    ReadTimeout,
+    RequestException,
+    Timeout,
+    ConnectionError,
+)
 
 _LOGGER = logging.getLogger("pysomneo")
 
@@ -34,7 +41,9 @@ class SomneoSession(Session):
         self,
         base_url: str | None = None,
         use_session: bool = True,
-        request_timeout: float = 8.0,
+        connect_timeout: float = 2.0,
+        read_timeout: float = 8.0,
+        timeout: tuple[float, float] | None = None,
         pool_connections: int = 1,
         pool_maxsize: int = 1,
         adapter_retries: int = 0,
@@ -47,7 +56,7 @@ class SomneoSession(Session):
         self._pool_maxsize = pool_maxsize
         self._adapter_retries = adapter_retries
         self._adapter_backoff_factor = adapter_backoff_factor
-        self._request_timeout = request_timeout
+        self._timeout = (connect_timeout, read_timeout) if timeout is None else timeout
 
         self._mount_adapter()
 
@@ -84,22 +93,37 @@ class SomneoSession(Session):
         # Re-mount adapters after re-init
         self._mount_adapter()
 
+    def _get_sleep_time(self, weight: float, attempt: int) -> float:
+        """Calculate exponential backoff sleep time."""
+        return min(weight * (2**attempt), 10)
+
+    def _classify_error(self, e):
+        """
+        Classify exceptions for logging, pool reset, and backoff.
+        Returns: (err_type: str, reset_pool: bool, weight: float)
+        """
+        if isinstance(e, ConnectTimeout):
+            return "ConnectTimeout", True, 0.5
+        elif isinstance(e, ReadTimeout):
+            return "ReadTimeout", False, 2.0
+        elif isinstance(e, ConnectionError):
+            if isinstance(e.__cause__, NewConnectionError):
+                return "NewConnectionError", True, 0.25
+            else:
+                return "ConnectionError", True, 1.0
+        elif isinstance(e, Timeout):
+            return "Timeout", False, 0.5
+        else:  # fallback for other RequestExceptions
+            return "RequestException", False, 0.75
+
     def request(self, method, url, **kwargs):
-        """
-        Override request to:
-          - join base_url,
-          - try a quick reset-and-retry on ConnectionError,
-          - perform a few retries with backoff for other transient errors.
-        Returns a requests.Response (not .json()) — keep same semantics as requests.Session.request.
-        """
         if self.base_url:
             full_url = urljoin(self.base_url, url)
         else:
             full_url = url
 
-        # Use provided timeout if present, otherwise the session default
         if "timeout" not in kwargs:
-            kwargs["timeout"] = self._request_timeout
+            kwargs["timeout"] = self._timeout
 
         max_attempts = 3
         last_exc = None
@@ -109,99 +133,59 @@ class SomneoSession(Session):
                 if self._use_session:
                     resp = super().request(method, full_url, **kwargs)
                 else:
-                    resp = request(
-                        method, full_url, timeout=self._request_timeout, **kwargs
-                    )
+                    resp = request(method, full_url, timeout=self._timeout, **kwargs)
+
                 if resp.status_code == 422:
                     raise SomneoInvalidURLError(
                         f"Invalid URL: {full_url}", response=resp
                     )
                 return resp
 
-            except ConnectTimeout as e:
+            except (
+                ConnectTimeout,
+                ReadTimeout,
+                ConnectionError,
+                Timeout,
+                RequestException,
+            ) as e:
+                err_type, reset_pool, weight = self._classify_error(e)
+
                 _LOGGER.debug(
-                    "ConnectTimeout (attempt %d/%d) when calling %s: %s",
+                    "%s (attempt %d/%d) when calling %s: %s",
+                    err_type,
                     attempt,
                     max_attempts,
                     full_url,
                     e,
                 )
                 last_exc = e
-                # try resetting the session pool immediately and retry.
-                if attempt < max_attempts and self._use_session:
+
+                # Reset pool if necessary
+                if reset_pool and attempt <= max_attempts and self._use_session:
                     _LOGGER.info(
-                        "Resetting session pool (attempt %d) for %s", attempt, full_url
+                        "Resetting session pool (attempt %d) for %s due to %s",
+                        attempt,
+                        full_url,
+                        err_type,
                     )
                     try:
                         self._reset_session_pool()
                     except (OSError, RuntimeError) as exc:
                         _LOGGER.debug("Session reset failed: %s", exc)
-                    # immediate retry loop continues
-                    continue
 
-            except ReadTimeout as e:
-                # This is the important case: remote refused or underlying socket invalid
-                _LOGGER.debug(
-                    "ReadTimeout (attempt %d/%d) to %s: %s",
-                    attempt,
-                    max_attempts,
-                    full_url,
-                    e,
-                )
-                last_exc = e
+                # Backoff
+                sleep = self._get_sleep_time(weight, attempt)
 
-            except ConnectionError as e:
-                # This is the important case: remote refused or underlying socket invalid
-                _LOGGER.debug(
-                    "ConnectionError (attempt %d/%d) to %s: %s",
-                    attempt,
-                    max_attempts,
-                    full_url,
-                    e,
-                )
-                last_exc = e
-                # try resetting the session pool immediately and retry.
-                if attempt < max_attempts and self._use_session:
-                    _LOGGER.info(
-                        "Resetting session pool (attempt %d) for %s", attempt, full_url
+                if attempt < max_attempts:
+                    _LOGGER.debug(
+                        "Sleeping %.2fs before retrying %s (attempt %d/%d)",
+                        sleep,
+                        full_url,
+                        attempt,
+                        max_attempts,
                     )
-                    try:
-                        self._reset_session_pool()
-                    except (OSError, RuntimeError) as exc:
-                        _LOGGER.debug("Session reset failed: %s", exc)
-                    # immediate retry loop continues
-                    continue
+                    time.sleep(sleep)
 
-            except Timeout as e:
-                _LOGGER.debug(
-                    "Timeout (attempt %d/%d) when calling %s: %s",
-                    attempt,
-                    max_attempts,
-                    full_url,
-                    e,
-                )
-                last_exc = e
-
-            except RequestException as e:
-                # Generic requests exceptions (HTTPError will be raised after response)
-                _LOGGER.debug(
-                    "RequestException (attempt %d/%d) when calling %s: %s",
-                    attempt,
-                    max_attempts,
-                    full_url,
-                    e,
-                )
-                last_exc = e
-
-            # If not returned, apply exponential backoff before next attempt
-            if attempt < max_attempts:
-                sleep = 0.75 * (2 ** (attempt - 1))  # 0.75s, 1.5s, 3s ...
-                _LOGGER.debug(
-                    "Sleeping %.2fs before next attempt to %s", sleep, full_url
-                )
-                time.sleep(sleep)
-
-        # All attempts failed — raise last exception to caller
         _LOGGER.error("All %d attempts failed for %s", max_attempts, full_url)
         if last_exc is not None:
             raise last_exc
@@ -213,12 +197,12 @@ class SomneoClient:
 
     def __init__(self, host: str, use_session: bool = True):
         urllib3.disable_warnings()
-        self.request_timeout = 8.0
         self.host = host
+        self.timeout = (2.0, 8.0)  # (connect, read) timeouts in seconds
         self.session = SomneoSession(
             base_url=f"https://{host}/di/v1/products/1/",
             use_session=use_session,
-            request_timeout=self.request_timeout,
+            timeout=self.timeout,
         )
 
     def _internal_call(
@@ -238,7 +222,7 @@ class SomneoClient:
         r = None
         try:
             r = self.session.request(
-                method, path, verify=False, timeout=self.request_timeout, **args
+                method, path, verify=False, timeout=self.timeout, **args
             )
             r.raise_for_status()
             return r.json()
@@ -270,7 +254,7 @@ class SomneoClient:
             response = None
             try:
                 response = self.session.request(
-                    "GET", url, verify=False, timeout=self.request_timeout
+                    "GET", url, verify=False, timeout=self.timeout
                 )
                 response.raise_for_status()
                 # Try parsing immediately to ensure it's valid XML

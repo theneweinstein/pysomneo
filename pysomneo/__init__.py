@@ -235,13 +235,9 @@ class Somneo(object):
         if brightness:
             payload["ltlvl"] = int(brightness / 255 * 25)
 
-        # Some Wake-ups lights don't work with wucrv, remove key if exists
-        if "wucrv" in payload:
-            payload.pop("wucrv")
-
         _LOGGER.debug("PUT toggle_light payload=%s", payload)
-        self.light_data = self._client.modify_light(payload=payload)
-        _LOGGER.debug("PUT toggle_light response=%s", self.light_data)
+        response = self._client.modify_light(payload=payload)
+        _LOGGER.debug("PUT toggle_light response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -255,12 +251,10 @@ class Somneo(object):
         payload = dict(self.light_data)
         payload["onoff"] = False
         payload["ngtlt"] = state
-        if "wucrv" in payload:
-            payload.pop("wucrv")
 
         _LOGGER.debug("PUT toggle_night_light payload=%s", payload)
-        self.light_data = self._client.modify_light(payload=payload)
-        _LOGGER.debug("PUT toggle_night_light response=%s", self.light_data)
+        response = self._client.modify_light(payload=payload)
+        _LOGGER.debug("PUT toggle_night_light response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -270,8 +264,8 @@ class Somneo(object):
         """Dismiss a running alarm."""
         payload = {"disms": True}
         _LOGGER.debug("PUT dismiss_alarm payload=%s", payload)
-        resp = self._client.modify_running_alarm(payload=payload)
-        _LOGGER.debug("PUT dismiss_alarm response=%s", resp)
+        response = self._client.modify_running_alarm(payload=payload)
+        _LOGGER.debug("PUT dismiss_alarm response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -281,8 +275,8 @@ class Somneo(object):
         """Snooze a running alarm."""
         payload = {"tapsz": True}
         _LOGGER.debug("PUT snooze_alarm payload=%s", payload)
-        resp = self._client.modify_running_alarm(payload=payload)
-        _LOGGER.debug("PUT snooze_alarm response=%s", resp)
+        response = self._client.modify_running_alarm(payload=payload)
+        _LOGGER.debug("PUT snooze_alarm response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -297,13 +291,13 @@ class Somneo(object):
         alarm_pos = self.data["alarms"][alarm]["position"]
         payload = {"prfnr": alarm_pos}
         _LOGGER.debug("PUT get_alarm_details payload=%s", payload)
-        resp = self._client.modify_alarm_details(payload=payload)
-        _LOGGER.debug("PUT get_alarm_details response=%s", resp)
+        response = self._client.modify_alarm_details(payload=payload)
+        _LOGGER.debug("PUT get_alarm_details response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
         self._fetch_alarm_data()
-        return resp
+        return response
 
     def toggle_alarm(self, alarm, status):
         """Toggle the alarm on or off"""
@@ -316,8 +310,8 @@ class Somneo(object):
             "prfen": status,
         }
         _LOGGER.debug("PUT toggle_alarm payload=%s", payload)
-        resp = self._client.modify_alarm_wake_up_configuration(payload=payload)
-        _LOGGER.debug("PUT toggle_alarm response=%s", resp)
+        response = self._client.modify_alarm_wake_up_configuration(payload=payload)
+        _LOGGER.debug("PUT toggle_alarm response=%s", response)
 
         self.data["alarms"][alarm]["enabled"] = status
         time.sleep(0.1)  # Short delay to allow the device to process
@@ -357,8 +351,8 @@ class Somneo(object):
             alarm_settings["pszmn"] = pw_dt.minute
 
         _LOGGER.debug("PUT set_alarm payload=%s", alarm_settings)
-        resp = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
-        _LOGGER.debug("PUT set_alarm response=%s", resp)
+        response = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
+        _LOGGER.debug("PUT set_alarm response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -379,8 +373,8 @@ class Somneo(object):
         }
 
         _LOGGER.debug("PUT set_alarm_light payload=%s", alarm_settings)
-        resp = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
-        _LOGGER.debug("PUT set_alarm_light response=%s", resp)
+        response = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
+        _LOGGER.debug("PUT set_alarm_light response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -407,8 +401,8 @@ class Somneo(object):
         }
 
         _LOGGER.debug("PUT set_alarm_sound payload=%s", alarm_settings)
-        resp = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
-        _LOGGER.debug("PUT set_alarm_sound response=%s", resp)
+        response = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
+        _LOGGER.debug("PUT set_alarm_sound response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -435,8 +429,8 @@ class Somneo(object):
         self.data["alarms"][alarm]["powerwake_delta"] = delta if onoff else 0
 
         _LOGGER.debug("PUT set_alarm_powerwake payload=%s", alarm_settings)
-        resp = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
-        _LOGGER.debug("PUT set_alarm_powerwake response=%s", resp)
+        response = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
+        _LOGGER.debug("PUT set_alarm_powerwake response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -446,8 +440,8 @@ class Somneo(object):
         """Adjust the snooze time (minutes) of all alarms"""
         payload = {"snztm": snooze_time}
         _LOGGER.debug("PUT set_snooze_time payload=%s", payload)
-        self.snoozetime = self._client.modify_alarm_details(payload=payload)
-        _LOGGER.debug("PUT set_snooze_time response=%s", self.snoozetime)
+        response = self._client.modify_alarm_details(payload=payload)
+        _LOGGER.debug("PUT set_snooze_time response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -464,8 +458,8 @@ class Somneo(object):
         }
 
         _LOGGER.debug("PUT add_alarm payload=%s", alarm_settings)
-        resp = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
-        _LOGGER.debug("PUT add_alarm response=%s", resp)
+        response = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
+        _LOGGER.debug("PUT add_alarm response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -495,8 +489,8 @@ class Somneo(object):
         }
 
         _LOGGER.debug("PUT remove_alarm payload=%s", alarm_settings)
-        resp = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
-        _LOGGER.debug("PUT remove_alarm response=%s", resp)
+        response = self._client.modify_alarm_wake_up_configuration(payload=alarm_settings)
+        _LOGGER.debug("PUT remove_alarm response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -509,8 +503,8 @@ class Somneo(object):
 
         payload = {"onoff": status}
         _LOGGER.debug("PUT toggle_sunset payload=%s", payload)
-        self.sunset_data = self._client.modify_sunset(payload=payload)
-        _LOGGER.debug("PUT toggle_sunset response=%s", self.sunset_data)
+        response = self._client.modify_sunset(payload=payload)
+        _LOGGER.debug("PUT toggle_sunset response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -549,8 +543,8 @@ class Somneo(object):
             sunset_settings["sndlv"] = volume
 
         _LOGGER.debug("PUT set_sunset payload=%s", sunset_settings)
-        self.sunset_data = self._client.modify_sunset(payload=sunset_settings)
-        _LOGGER.debug("PUT set_sunset response=%s", self.sunset_data)
+        response = self._client.modify_sunset(payload=sunset_settings)
+        _LOGGER.debug("PUT set_sunset response=%s", response)
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
         time.sleep(0.1)  # Short delay to allow the device to process
@@ -566,8 +560,8 @@ class Somneo(object):
         data["onoff"] = state
 
         _LOGGER.debug("PUT toggle_player payload=%s", data)
-        self.player = self._client.modify_player(payload=data)
-        _LOGGER.debug("PUT toggle_player response=%s", self.player)
+        response = self._client.modify_player(payload=data)
+        _LOGGER.debug("PUT toggle_player response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -579,8 +573,8 @@ class Somneo(object):
 
         payload = {"sdvol": int(volume * 24 + 1)}
         _LOGGER.debug("PUT set_player_volume payload=%s", payload)
-        self.player = self._client.modify_player(payload=payload)
-        _LOGGER.debug("PUT set_player_volume response=%s", self.player)
+        response = self._client.modify_player(payload=payload)
+        _LOGGER.debug("PUT set_player_volume response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -600,10 +594,11 @@ class Somneo(object):
                 "tempy": False,
             }
             _LOGGER.debug("PUT set_player_source payload=%s", payload)
-            self.player = self._client.modify_player(payload=payload)
-            _LOGGER.debug("PUT set_player_source response=%s", self.player)
+            response = self._client.modify_player(payload=payload)
+            _LOGGER.debug("PUT set_player_source response=%s", response)
             # Repeat command for some unknown reason
-            self.player = self._client.modify_player(payload=payload)
+            response = self._client.modify_player(payload=payload)
+            _LOGGER.debug("PUT set_player_source response=%s", response)
         elif source in range(1, 6):
             payload = {
                 "snddv": "fmr",
@@ -613,8 +608,8 @@ class Somneo(object):
                 "tempy": False,
             }
             _LOGGER.debug("PUT set_player_source payload=%s", payload)
-            self.player = self._client.modify_player(payload=payload)
-        _LOGGER.debug("PUT set_player_source response=%s", self.player)
+            response = self._client.modify_player(payload=payload)
+            _LOGGER.debug("PUT set_player_source response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
@@ -635,8 +630,8 @@ class Somneo(object):
         }
 
         _LOGGER.debug("PUT set_display payload=%s", payload)
-        self.alarm_status = self._client.modify_alarm_status(payload=payload)
-        _LOGGER.debug("PUT set_display response=%s", self.alarm_status)
+        response = self._client.modify_alarm_status(payload=payload)
+        _LOGGER.debug("PUT set_display response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state

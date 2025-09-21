@@ -349,6 +349,8 @@ class SomneoClient:
 
     def modify_light(self, payload: dict) -> dict:
         """Set light data"""
+        if "wucrv" in payload: # Some Wake-ups lights don't work with wucrv, remove key if exists
+            payload.pop("wucrv")
         return self.put("wulgt", payload=payload)
 
     def modify_sunset(self, payload: dict) -> dict:

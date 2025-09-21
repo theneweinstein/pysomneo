@@ -339,3 +339,31 @@ class SomneoClient:
     def get_player_status(self):
         """Get player status"""
         return self._get("wuply")
+
+    def modify_light(self, payload: dict) -> dict:
+        """Set light data"""
+        return self.put("wulgt", payload=payload)
+
+    def modify_sunset(self, payload: dict) -> dict:
+        """Set sunset data"""
+        return self.put("wudsk", payload=payload)
+
+    def modify_player(self, payload: dict) -> dict:
+        """Set player control data"""
+        return self.put("wuply", payload=payload)
+
+    def modify_alarm_details(self, payload: dict) -> dict:
+        """Set alarm control data"""
+        return self.put("wualm", payload=payload)
+
+    def modify_running_alarm(self, payload: dict) -> dict:
+        """Set alarm control data"""
+        return self.put("wualm/alctr", payload=payload)
+
+    def modify_alarm_wake_up_configuration(self, payload: dict) -> dict:
+        """Set alarm wake up data"""
+        return self.put("wualm/prfwu", payload=payload)
+
+    def modify_alarm_status(self, payload: dict) -> dict:
+        """Set alarm wake up status"""
+        return self.put("wusts", payload=payload)

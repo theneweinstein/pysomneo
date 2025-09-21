@@ -95,7 +95,7 @@ class SomneoSession(Session):
 
     def _get_sleep_time(self, weight: float, attempt: int) -> float:
         """Calculate exponential backoff sleep time."""
-        return min(weight * (2**attempt), 10)
+        return min(weight * (2**(attempt - 1)), 10)
 
     def _classify_error(self, e):
         """
@@ -103,7 +103,7 @@ class SomneoSession(Session):
         Returns: (err_type: str, reset_pool: bool, weight: float)
         """
         if isinstance(e, ConnectTimeout):
-            return "ConnectTimeout", True, 0.5
+            return "ConnectTimeout", True, 1.5
         elif isinstance(e, ReadTimeout):
             return "ReadTimeout", False, 2.0
         elif isinstance(e, ConnectionError):
@@ -127,6 +127,7 @@ class SomneoSession(Session):
 
         max_attempts = 3
         last_exc = None
+        has_reset_pool = False
 
         for attempt in range(1, max_attempts + 1):
             try:
@@ -161,7 +162,12 @@ class SomneoSession(Session):
                 last_exc = e
 
                 # Reset pool if necessary
-                if reset_pool and attempt <= max_attempts and self._use_session:
+                if (
+                    reset_pool
+                    and attempt <= max_attempts
+                    and self._use_session
+                    and not has_reset_pool
+                ):
                     _LOGGER.info(
                         "Resetting session pool (attempt %d) for %s due to %s",
                         attempt,
@@ -170,6 +176,7 @@ class SomneoSession(Session):
                     )
                     try:
                         self._reset_session_pool()
+                        has_reset_pool = True
                     except (OSError, RuntimeError) as exc:
                         _LOGGER.debug("Session reset failed: %s", exc)
 

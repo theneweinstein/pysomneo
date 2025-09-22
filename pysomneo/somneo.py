@@ -522,6 +522,7 @@ class Somneo(object):
         # before updating internal state
         self._fetch_sunset_data()
         self._fetch_player_data()
+        self._fetch_alarm_status()
 
     def set_sunset(
         self, curve=None, level=None, duration=None, sound=None, volume=None
@@ -562,6 +563,7 @@ class Somneo(object):
         time.sleep(0.1)  # Short delay to allow the device to process
         self._fetch_sunset_data()
         self._fetch_player_data()
+        self._fetch_alarm_status()
 
     def toggle_player(self, state: bool):
         """Toggle the audio player"""
@@ -578,6 +580,9 @@ class Somneo(object):
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
         self._fetch_player_data()
+        # It might also affect the sunset state
+        self._fetch_sunset_data()
+        self._fetch_alarm_status()
 
     def set_player_volume(self, volume: float):
         """Set the volume of the player (0..1)"""
@@ -626,6 +631,9 @@ class Somneo(object):
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
         self._fetch_player_data()
+        # It might also affect the sunset state
+        self._fetch_sunset_data()
+        self._fetch_alarm_status()
 
     def set_display(self, state=None, brightness=None):
         """Adjust the display"""

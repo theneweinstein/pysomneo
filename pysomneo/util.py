@@ -12,29 +12,28 @@ def days_int_to_list(days_int):
     """Convert integer to list of days."""
     if days_int == 0:
         return ["tomorrow"]
-    else:
-        return [v for k, v in DAYS.items() if k & days_int]
+    return [v for k, v in DAYS.items() if k & days_int]
 
 
 def days_list_to_int(days):
     """Convert list of days to integer."""
-    return sum([k for k, v in DAYS.items() if (v in days)])
+    return sum(k for k, v in DAYS.items() if v in days)
 
 
 def days_int_to_type(days_int):
     """Convert integer to predefined days."""
-    if days_int in DAYS_TYPE.keys():
+    if days_int in DAYS_TYPE:
         return DAYS_TYPE[days_int]
-    else:
-        return "custom"
+
+    return "custom"
 
 
 def alarms_to_dict(enabled_alarms, time_alarms):
     """Construct alarm data dictionary."""
 
-    alarms = dict()
+    alarms = {}
     for alarm, enabled in enumerate(enabled_alarms["prfen"]):
-        alarms[alarm] = dict()
+        alarms[alarm] = {}
         alarms[alarm]["position"] = alarm + 1
         alarms[alarm]["name"] = "alarm" + str(alarm)
         alarms[alarm]["enabled"] = bool(enabled)
@@ -62,7 +61,7 @@ def alarms_to_dict(enabled_alarms, time_alarms):
 
 def sunset_to_dict(sunset_data, light_curves, sounds):
     """Construct sunset data dictionary."""
-    data = dict()
+    data = {}
     data["is_on"] = bool(sunset_data["onoff"])
     data["duration"] = int(sunset_data["durat"])
     data["curve"] = list(light_curves.keys())[
@@ -86,7 +85,7 @@ def sunset_to_dict(sunset_data, light_curves, sounds):
 
 def player_to_dict(player):
     """Construct player data dictionary."""
-    data = dict()
+    data = {}
     data["state"] = bool(player["onoff"])
     data["volume"] = (float(player["sdvol"]) - 1) / 24
     if player["snddv"] == "aux":
@@ -99,12 +98,12 @@ def player_to_dict(player):
     return data
 
 
-def next_alarm(alarms):
+def get_next_alarm(alarms):
     """Get the next alarm that is set."""
     next_alarm = None
     new_next_alarm = None
     for alarm in alarms:
-        if alarms[alarm]["enabled"] == True:
+        if alarms[alarm]["enabled"] is True:
             # Get current time and day.
             now_time = datetime.now()
             now_day = date.today()
@@ -136,12 +135,8 @@ def next_alarm(alarms):
                             break
 
             if next_alarm:
-                if new_next_alarm < next_alarm:
-                    next_alarm = new_next_alarm
-            else:
-                next_alarm = new_next_alarm
+                next_alarm = min(next_alarm, new_next_alarm)
 
     if next_alarm:
         return next_alarm.astimezone()
-    else:
-        return None
+    return None

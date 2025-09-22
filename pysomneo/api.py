@@ -21,7 +21,7 @@ from requests.exceptions import (
     ConnectionError,
 )
 
-_LOGGER = logging.getLogger("pysomneo")
+_LOGGER = logging.getLogger(__name__)
 
 
 class SomneoInvalidURLError(RequestException):

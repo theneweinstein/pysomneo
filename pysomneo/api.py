@@ -178,6 +178,8 @@ class SomneoSession(Session):
                     try:
                         self._reset_session_pool()
                         has_reset_pool = True
+                        # longer backoff after reset to allow new connection to be established
+                        weight = 8.0
                     except (OSError, RuntimeError) as exc:
                         _LOGGER.debug("Session reset failed: %s", exc)
 

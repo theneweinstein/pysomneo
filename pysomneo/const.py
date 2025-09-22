@@ -2,7 +2,6 @@
 Constants for the pysomneo library.
 """
 
-
 SOUND_SOURCE_ALARM = {"wake-up": "wus", "radio": "fmr", "off": "off"}
 SOUND_SOURCE_DUSK = {"radio": "fmr", "off": "off", "dusk": "dus"}
 

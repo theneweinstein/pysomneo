@@ -95,7 +95,7 @@ class SomneoSession(Session):
 
     def _get_sleep_time(self, weight: float, attempt: int) -> float:
         """Calculate exponential backoff sleep time."""
-        return min(weight * (2**(attempt - 1)), 10)
+        return min(weight * (2 ** (attempt - 1)), 10)
 
     def _classify_error(self, e):
         """
@@ -107,8 +107,9 @@ class SomneoSession(Session):
         elif isinstance(e, ReadTimeout):
             return "ReadTimeout", False, 2.0
         elif isinstance(e, ConnectionError):
-            if isinstance(getattr(e, "__cause__", None), NewConnectionError) or \
-               "NewConnectionError" in str(e):
+            if isinstance(
+                getattr(e, "__cause__", None), NewConnectionError
+            ) or "NewConnectionError" in str(e):
                 return "NewConnectionError", True, 1.5
             return "ConnectionError", True, 1.0
         elif isinstance(e, Timeout):
@@ -349,7 +350,9 @@ class SomneoClient:
 
     def modify_light(self, payload: dict) -> dict:
         """Set light data"""
-        if "wucrv" in payload: # Some Wake-ups lights don't work with wucrv, remove key if exists
+        if (
+            "wucrv" in payload
+        ):  # Some Wake-ups lights don't work with wucrv, remove key if exists
             payload.pop("wucrv")
         return self.put("wulgt", payload=payload)
 

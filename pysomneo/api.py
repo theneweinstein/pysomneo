@@ -45,35 +45,22 @@ class SomneoSession(Session):
         read_timeout: float = 8.0,
         timeout: tuple[float, float] | None = None,
         pool_connections: int = 1,
-        pool_maxsize: int = 1,
-        adapter_retries: int = 0,
-        adapter_backoff_factor: float = 0.1,
+        pool_maxsize: int = 1
     ):
         super().__init__()
         self.base_url = base_url
         self._use_session = use_session
         self._pool_connections = pool_connections
         self._pool_maxsize = pool_maxsize
-        self._adapter_retries = adapter_retries
-        self._adapter_backoff_factor = adapter_backoff_factor
         self._timeout = (connect_timeout, read_timeout) if timeout is None else timeout
 
         self._mount_adapter()
-
-    def _make_retry_strategy(self):
-        # Minimal adapter retry strategy — keep low because we do request-level retries too
-        return Retry(
-            total=self._adapter_retries,
-            backoff_factor=self._adapter_backoff_factor,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=frozenset(["HEAD", "GET", "PUT", "DELETE", "OPTIONS"]),
-        )
 
     def _mount_adapter(self):
         adapter = HTTPAdapter(
             pool_connections=self._pool_connections,
             pool_maxsize=self._pool_maxsize,
-            max_retries=self._make_retry_strategy(),
+            max_retries=Retry(total=0),
             pool_block=False,
         )
         # (re)mount adapters for both http and https

@@ -242,6 +242,7 @@ class Somneo(object):
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
         self._fetch_light_data()
+        self._fetch_sensor_data()
 
     def toggle_night_light(self, state):
         """Toggle the night light on or off"""
@@ -259,6 +260,7 @@ class Somneo(object):
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
         self._fetch_light_data()
+        self._fetch_sensor_data()
 
     def dismiss_alarm(self):
         """Dismiss a running alarm."""
@@ -383,6 +385,8 @@ class Somneo(object):
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
         self._fetch_alarm_data()
+        self._fetch_light_data()
+        self._fetch_sensor_data()
 
     def set_alarm_sound(
         self, alarm, source="wake-up", channel="forest birds", level=12
@@ -413,6 +417,8 @@ class Somneo(object):
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
         self._fetch_alarm_data()
+        self._fetch_player_data()
+        self._fetch_sensor_data()
 
     def set_alarm_powerwake(self, alarm, onoff=False, delta=0):
         """Set power wake"""
@@ -523,6 +529,7 @@ class Somneo(object):
         self._fetch_sunset_data()
         self._fetch_player_data()
         self._fetch_alarm_status()
+        self._fetch_sensor_data()
 
     def set_sunset(
         self, curve=None, level=None, duration=None, sound=None, volume=None
@@ -564,6 +571,7 @@ class Somneo(object):
         self._fetch_sunset_data()
         self._fetch_player_data()
         self._fetch_alarm_status()
+        self._fetch_sensor_data()
 
     def toggle_player(self, state: bool):
         """Toggle the audio player"""
@@ -583,6 +591,7 @@ class Somneo(object):
         # It might also affect the sunset state
         self._fetch_sunset_data()
         self._fetch_alarm_status()
+        self._fetch_sensor_data()
 
     def set_player_volume(self, volume: float):
         """Set the volume of the player (0..1)"""
@@ -596,6 +605,7 @@ class Somneo(object):
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
         self._fetch_player_data()
+        self._fetch_sensor_data()
 
     def set_player_source(self, source: str | int):
         """Set the source of the player, either 'aux' or preset 1..5"""
@@ -634,6 +644,7 @@ class Somneo(object):
         # It might also affect the sunset state
         self._fetch_sunset_data()
         self._fetch_alarm_status()
+        self._fetch_sensor_data()
 
     def set_display(self, state=None, brightness=None):
         """Adjust the display"""
@@ -656,3 +667,4 @@ class Somneo(object):
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state
         self._fetch_alarm_status()
+        self._fetch_sensor_data()

@@ -5,7 +5,7 @@ Utility functions for pysomneo.
 import calendar
 from datetime import time, date, timedelta, datetime
 
-from .const import DAYS, DAYS_TYPE
+from .const import DAYS, DAYS_TYPE, SOURCES
 
 
 def days_int_to_list(days_int):
@@ -104,6 +104,12 @@ def player_to_dict(player, dusk_sound_themes):
         data["source"] = theme_name.title()
     else:
         data["source"] = "Other"
+
+    possible_sources = list(SOURCES.keys())
+    if dusk_sound_themes:
+        possible_sources += [name.title() for name in dusk_sound_themes.keys()]
+
+    data["possible_sources"] = possible_sources
 
     return data
 

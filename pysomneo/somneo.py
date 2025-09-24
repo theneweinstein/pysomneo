@@ -58,7 +58,7 @@ class Somneo(object):
         """Get valid light curves for this light."""
         if len(self._wake_light_themes) == 0:
             self._fetch_themes()
-        _LOGGER.debug(self._wake_light_themes)
+            _LOGGER.debug(self._wake_light_themes)
         return self._wake_light_themes
 
     @property
@@ -82,7 +82,7 @@ class Somneo(object):
         """Get valid winddown sounds for this light."""
         if len(self._dusk_sound_themes) == 0:
             self._fetch_themes()
-        _LOGGER.debug(self._dusk_sound_themes)
+            _LOGGER.debug(self._dusk_sound_themes)
         return self._dusk_sound_themes
 
     def _fetch_themes(self):
@@ -553,12 +553,15 @@ class Somneo(object):
         if sound:
             if sound == "off":
                 sunset_settings["snddv"] = "off"
-            elif sound[0:2] == "fm":
+            elif sound.upper().startswith("FM"):
                 sunset_settings["snddv"] = "fmr"
                 sunset_settings["sndch"] = sound[3:]
-            else:
+            elif sound.lower() in self.dusk_sound_themes:
                 sunset_settings["snddv"] = "dus"
                 sunset_settings["sndch"] = self.dusk_sound_themes[sound.lower()]
+            else:
+                _LOGGER.error("Invalid sound specified: %s", sound)
+                raise ValueError(f"Unsupported sunset sound: {sound}")
         if volume:
             sunset_settings["sndlv"] = volume
 
@@ -607,23 +610,31 @@ class Somneo(object):
         self._fetch_player_data()
         self._fetch_sensor_data()
 
-    def set_player_source(self, source: str, channel: str | None = None):
-        """Set the source of the player, either 'aux' or preset 1..5"""
+    def set_player_source(self, source: str):
+        """
+        Set the source of the player, either 'aux' 
+        or preset 1..5 or one of the dusk sound theme
+        """
         if not self.player:
             self._fetch_player_data()
 
         previous_state = self.player["onoff"]
-        snddv = None 
+
+        snddv = None
         sndch = None
-        if source.upper() in ["AUX"]:
+
+        if source.upper() == "AUX":
             snddv = "aux"
             sndch = "1"
-        elif source in range(1, 6):
+        elif source.upper().startswith("FM "):
             snddv = "fmr"
-            sndch = str(source)
-        elif source.upper() == "DUSK":
+            sndch = source.split(" ")[1]
+        elif source.lower() in self.dusk_sound_themes:
             snddv = "dus"
-            sndch = channel if channel else "1"
+            sndch = self.dusk_sound_themes[source.lower()]
+        else:
+            _LOGGER.error("Invalid source specified: %s", source)
+            raise ValueError(f"Unsupported player source: {source}")
 
         payload = {
             "snddv": snddv,

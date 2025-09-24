@@ -83,15 +83,25 @@ def sunset_to_dict(sunset_data, light_curves, sounds):
     return data
 
 
-def player_to_dict(player):
+def player_to_dict(player, dusk_sound_themes):
     """Construct player data dictionary."""
     data = {}
     data["state"] = bool(player["onoff"])
     data["volume"] = (float(player["sdvol"]) - 1) / 24
+
+    snddv = player.get("snddv")
+    sndch = player.get("sndch")
+
     if player["snddv"] == "aux":
         data["source"] = "AUX"
     elif player["snddv"] == "fmr":
-        data["source"] = "FM " + player["sndch"]
+        data["source"] = "FM " + sndch
+    elif snddv == "dus":
+        theme_name = next(
+            (k for k, v in dusk_sound_themes.items() if str(v) == str(sndch)),
+            f"dusk:{sndch}",
+        )
+        data["source"] = theme_name.title()
     else:
         data["source"] = "Other"
 

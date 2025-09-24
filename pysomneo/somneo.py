@@ -216,7 +216,7 @@ class Somneo(object):
 
     def _update_player_data(self):
         """Update player data in data object"""
-        self.data["player"] = player_to_dict(self.player)
+        self.data["player"] = player_to_dict(self.player, self.dusk_sound_themes)
 
     def _fetch_player_data(self):
         """Fetch only the player data from Somneo"""
@@ -607,36 +607,35 @@ class Somneo(object):
         self._fetch_player_data()
         self._fetch_sensor_data()
 
-    def set_player_source(self, source: str | int):
+    def set_player_source(self, source: str, channel: str | None = None):
         """Set the source of the player, either 'aux' or preset 1..5"""
         if not self.player:
             self._fetch_player_data()
 
         previous_state = self.player["onoff"]
-        if source in ["aux", "AUX"]:
-            payload = {
-                "snddv": "aux",
-                "sndss": 0,
-                "onoff": previous_state,
-                "tempy": False,
-            }
-            _LOGGER.debug("PUT set_player_source payload=%s", payload)
-            response = self._client.modify_player(payload=payload)
-            _LOGGER.debug("PUT set_player_source response=%s", response)
-            # Repeat command for some unknown reason
-            response = self._client.modify_player(payload=payload)
-            _LOGGER.debug("PUT set_player_source response=%s", response)
+        snddv = None 
+        sndch = None
+        if source.upper() in ["AUX"]:
+            snddv = "aux"
+            sndch = "1"
         elif source in range(1, 6):
-            payload = {
-                "snddv": "fmr",
-                "sndch": str(source),
-                "sndss": 0,
-                "onoff": previous_state,
-                "tempy": False,
-            }
-            _LOGGER.debug("PUT set_player_source payload=%s", payload)
-            response = self._client.modify_player(payload=payload)
-            _LOGGER.debug("PUT set_player_source response=%s", response)
+            snddv = "fmr"
+            sndch = str(source)
+        elif source.upper() == "DUSK":
+            snddv = "dus"
+            sndch = channel if channel else "1"
+
+        payload = {
+            "snddv": snddv,
+            "sndch": sndch,
+            "sndss": 0,
+            "onoff": previous_state,
+            "tempy": False,
+        }
+
+        _LOGGER.debug("PUT set_player_source payload=%s", payload)
+        response = self._client.modify_player(payload=payload)
+        _LOGGER.debug("PUT set_player_source response=%s", response)
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state

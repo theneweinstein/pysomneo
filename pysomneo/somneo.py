@@ -565,6 +565,14 @@ class Somneo(object):
         if volume:
             sunset_settings["sndlv"] = volume
 
+        if bool(sunset_settings["onoff"]):
+            _LOGGER.debug(
+                "Sunset is already on, to modify it " \
+                "we need to turn it off first otherwise changes are ignored"
+            )
+            self.toggle_sunset(False)
+            time.sleep(1)  # short delay to allow the device to process
+
         _LOGGER.debug("PUT set_sunset payload=%s", sunset_settings)
         response = self._client.modify_sunset(payload=sunset_settings)
         _LOGGER.debug("PUT set_sunset response=%s", response)
@@ -612,13 +620,15 @@ class Somneo(object):
 
     def set_player_source(self, source: str):
         """
-        Set the source of the player, either 'aux' 
+        Set the source of the player, either 'aux'
         or preset 1..5 or one of the dusk sound theme
         """
         if not self.player:
             self._fetch_player_data()
 
         previous_state = self.player["onoff"]
+        previous_sndch = self.player["sndch"]
+        sunset_settings = dict(self.sunset_data)
 
         snddv = None
         sndch = None
@@ -647,6 +657,14 @@ class Somneo(object):
         _LOGGER.debug("PUT set_player_source payload=%s", payload)
         response = self._client.modify_player(payload=payload)
         _LOGGER.debug("PUT set_player_source response=%s", response)
+
+        if bool(sunset_settings["onoff"]) and previous_sndch != sndch:
+            _LOGGER.debug(
+                "Sunset is already on and we modified the sound, " \
+                "to apply these we need to modify sunset endpoint"
+            )
+            self.set_sunset(sound=source)
+
         time.sleep(0.1)  # Short delay to allow the device to process
         # The response of the put command is incomplete, so sent a new request
         # before updating internal state

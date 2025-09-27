@@ -18,7 +18,7 @@ from requests.exceptions import (
     ReadTimeout,
     RequestException,
     Timeout,
-    ConnectionError,
+    ConnectionError as RequestsConnectionError,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ class SomneoSession(Session):
             return "ConnectTimeout", True, 1.5
         elif isinstance(e, ReadTimeout):
             return "ReadTimeout", False, 2.0
-        elif isinstance(e, ConnectionError):
+        elif isinstance(e, RequestsConnectionError):
             if isinstance(
                 getattr(e, "__cause__", None), NewConnectionError
             ) or "NewConnectionError" in str(e):
@@ -183,7 +183,7 @@ class SomneoSession(Session):
                     )
                     time.sleep(sleep)
 
-        _LOGGER.error("All %d attempts failed for %s", max_attempts, full_url)
+        _LOGGER.info("All %d attempts failed for %s", max_attempts, full_url)
         if last_exc is not None:
             raise last_exc
         raise RequestException("Unknown error in SomneoSession.request")

@@ -152,6 +152,8 @@ def get_next_alarm(alarms):
 
             if next_alarm:
                 next_alarm = min(next_alarm, new_next_alarm)
+            else:
+                next_alarm = new_next_alarm
 
     if next_alarm:
         return next_alarm.astimezone()

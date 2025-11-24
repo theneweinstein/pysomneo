@@ -122,7 +122,7 @@ class SomneoSession(Session):
                 if self._use_session:
                     resp = super().request(method, full_url, **kwargs)
                 else:
-                    resp = request(method, full_url, timeout=self._timeout, **kwargs)
+                    resp = request(method, full_url, **kwargs)
 
                 if resp.status_code == 422:
                     raise SomneoInvalidURLError(

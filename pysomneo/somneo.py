@@ -626,7 +626,6 @@ class Somneo(object):
         if not self.player:
             self._fetch_player_data()
 
-        previous_state = self.player["onoff"]
         previous_sndch = self.player["sndch"]
         sunset_settings = dict(self.sunset_data)
 
@@ -650,7 +649,7 @@ class Somneo(object):
             "snddv": snddv,
             "sndch": sndch,
             "sndss": 0,
-            "onoff": previous_state,
+            "onoff": True,
             "tempy": False,
         }
 

@@ -618,15 +618,21 @@ class Somneo(object):
         self._fetch_player_data()
         self._fetch_sensor_data()
 
-    def set_player_source(self, source: str):
+    def set_player_source(self, source: str | int):
         """
         Set the source of the player, either 'aux'
-        or preset 1..5 or one of the dusk sound theme
+        or preset 1..5 (int or 'FM N' string) or one of the dusk sound theme
         """
         if not self.player:
             self._fetch_player_data()
 
-        previous_state = self.player["onoff"]
+        # Support legacy int sources (1..5 = FM presets)
+        if isinstance(source, int):
+            if source in range(1, 6):
+                source = f"FM {source}"
+            else:
+                raise ValueError(f"Unsupported player source: {source}")
+
         previous_sndch = self.player["sndch"]
         sunset_settings = dict(self.sunset_data)
 
@@ -650,7 +656,7 @@ class Somneo(object):
             "snddv": snddv,
             "sndch": sndch,
             "sndss": 0,
-            "onoff": previous_state,
+            "onoff": True,
             "tempy": False,
         }
 

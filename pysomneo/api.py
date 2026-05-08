@@ -4,6 +4,7 @@ Philips Somneo API client using requests with connection pooling, retries, and s
 
 import time
 import logging
+import random
 import xml.etree.ElementTree as ET
 from typing import Any
 from urllib.parse import urljoin
@@ -41,11 +42,11 @@ class SomneoSession(Session):
         self,
         base_url: str | None = None,
         use_session: bool = True,
-        connect_timeout: float = 2.0,
-        read_timeout: float = 8.0,
+        connect_timeout: float = 3.0,
+        read_timeout: float = 15.0,
         timeout: tuple[float, float] | None = None,
-        pool_connections: int = 1,
-        pool_maxsize: int = 1
+        pool_connections: int = 5,
+        pool_maxsize: int = 5
     ):
         super().__init__()
         self.base_url = base_url
@@ -60,7 +61,11 @@ class SomneoSession(Session):
         adapter = HTTPAdapter(
             pool_connections=self._pool_connections,
             pool_maxsize=self._pool_maxsize,
-            max_retries=Retry(total=0),
+            max_retries=Retry(
+                total=2,
+                backoff_factor=1.0,
+                status_forcelist=[500, 502, 503, 504]
+            ),
             pool_block=False,
         )
         # (re)mount adapters for both http and https
@@ -81,8 +86,11 @@ class SomneoSession(Session):
         self._mount_adapter()
 
     def _get_sleep_time(self, weight: float, attempt: int) -> float:
-        """Calculate exponential backoff sleep time."""
-        return min(weight * (2 ** (attempt - 1)), 10)
+        """Calculate exponential backoff sleep time with jitter."""
+        base = min(weight * (2 ** (attempt - 1)), 10)
+        # Add random jitter (10% of base)
+        jitter = random.uniform(0, base * 0.1)
+        return base + jitter
 
     def _classify_error(self, e):
         """
@@ -92,7 +100,7 @@ class SomneoSession(Session):
         if isinstance(e, ConnectTimeout):
             return "ConnectTimeout", True, 1.5
         elif isinstance(e, ReadTimeout):
-            return "ReadTimeout", False, 2.0
+            return "ReadTimeout", False, 2.5
         elif isinstance(e, RequestsConnectionError):
             if isinstance(
                 getattr(e, "__cause__", None), NewConnectionError
@@ -195,7 +203,7 @@ class SomneoClient:
     def __init__(self, host: str, use_session: bool = True):
         urllib3.disable_warnings()
         self.host = host
-        self.timeout = (2.0, 8.0)  # (connect, read) timeouts in seconds
+        self.timeout = (3.0, 15.0)  # (connect, read) timeouts in seconds
         self.session = SomneoSession(
             base_url=f"https://{host}/di/v1/products/1/",
             use_session=use_session,

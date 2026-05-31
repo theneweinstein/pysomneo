@@ -42,8 +42,8 @@ class SomneoSession(Session):
         self,
         base_url: str | None = None,
         use_session: bool = True,
-        connect_timeout: float = 3.0,
-        read_timeout: float = 15.0,
+        connect_timeout: float = 5.0,
+        read_timeout: float = 20.0,
         timeout: tuple[float, float] | None = None,
         pool_connections: int = 5,
         pool_maxsize: int = 5
@@ -62,8 +62,8 @@ class SomneoSession(Session):
             pool_connections=self._pool_connections,
             pool_maxsize=self._pool_maxsize,
             max_retries=Retry(
-                total=2,
-                backoff_factor=1.0,
+                total=3,
+                backoff_factor=2.0,
                 status_forcelist=[500, 502, 503, 504]
             ),
             pool_block=False,
@@ -162,7 +162,7 @@ class SomneoSession(Session):
                     reset_pool
                     and attempt <= max_attempts
                     and self._use_session
-                    and not has_reset_pool
+                    #and not has_reset_pool
                 ):
                     _LOGGER.info(
                         "Resetting session pool (attempt %d) for %s due to %s",

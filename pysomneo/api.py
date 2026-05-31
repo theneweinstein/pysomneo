@@ -64,7 +64,8 @@ class SomneoSession(Session):
             max_retries=Retry(
                 total=3,
                 backoff_factor=2.0,
-                status_forcelist=[500, 502, 503, 504]
+                status_forcelist=[500, 502, 503, 504],
+                allowed_methods=["GET", "PUT", "POST"],  # Explicitly allow retries on these methods
             ),
             pool_block=False,
         )
@@ -203,7 +204,7 @@ class SomneoClient:
     def __init__(self, host: str, use_session: bool = True):
         urllib3.disable_warnings()
         self.host = host
-        self.timeout = (3.0, 15.0)  # (connect, read) timeouts in seconds
+        self.timeout = (5.0, 20.0)  # (connect, read) timeouts in seconds
         self.session = SomneoSession(
             base_url=f"https://{host}/di/v1/products/1/",
             use_session=use_session,

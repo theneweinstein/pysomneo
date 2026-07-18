@@ -1,6 +1,7 @@
 """
 Philips Somneo API client using requests with connection pooling, retries, and session management.
 """
+from __future__ import annotations
 
 import time
 import logging
@@ -8,6 +9,7 @@ import random
 import xml.etree.ElementTree as ET
 from typing import Any
 from urllib.parse import urljoin
+
 import urllib3
 from urllib3.util.retry import Retry
 from urllib3.exceptions import NewConnectionError
@@ -46,8 +48,9 @@ class SomneoSession(Session):
         read_timeout: float = 20.0,
         timeout: tuple[float, float] | None = None,
         pool_connections: int = 5,
-        pool_maxsize: int = 5
-    ):
+        pool_maxsize: int = 5,
+    ) -> None:
+        """Initialize the SomneoSession."""
         super().__init__()
         self.base_url = base_url
         self._use_session = use_session
@@ -57,7 +60,8 @@ class SomneoSession(Session):
 
         self._mount_adapter()
 
-    def _mount_adapter(self):
+    def _mount_adapter(self) -> None:
+        """Mount HTTP/HTTPS adapters with retry strategy."""
         adapter = HTTPAdapter(
             pool_connections=self._pool_connections,
             pool_maxsize=self._pool_maxsize,
@@ -73,12 +77,12 @@ class SomneoSession(Session):
         self.mount("http://", adapter)
         self.mount("https://", adapter)
 
-    def _reset_session_pool(self):
+    def _reset_session_pool(self) -> None:
         """Close the session and reinitialize internals and adapters."""
         try:
             # close underlying connections (releases pools)
             self.close()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             _LOGGER.debug("Error while closing session: %s", exc)
 
         # Re-init Session internals
@@ -93,27 +97,41 @@ class SomneoSession(Session):
         jitter = random.uniform(0, base * 0.1)
         return base + jitter
 
-    def _classify_error(self, e):
-        """
-        Classify exceptions for logging, pool reset, and backoff.
+    def _classify_error(self, e: Exception) -> tuple[str, bool, float]:
+        """Classify exceptions for logging, pool reset, and backoff.
+
         Returns: (err_type: str, reset_pool: bool, weight: float)
         """
         if isinstance(e, ConnectTimeout):
             return "ConnectTimeout", True, 1.5
-        elif isinstance(e, ReadTimeout):
+        if isinstance(e, ReadTimeout):
             return "ReadTimeout", False, 2.5
-        elif isinstance(e, RequestsConnectionError):
+        if isinstance(e, RequestsConnectionError):
             if isinstance(
                 getattr(e, "__cause__", None), NewConnectionError
             ) or "NewConnectionError" in str(e):
                 return "NewConnectionError", True, 1.5
             return "ConnectionError", True, 1.0
-        elif isinstance(e, Timeout):
+        if isinstance(e, Timeout):
             return "Timeout", False, 0.5
-        else:  # fallback for other RequestExceptions
-            return "RequestException", False, 0.75
+        # fallback for other RequestExceptions
+        return "RequestException", False, 0.75
 
-    def request(self, method, url, **kwargs):
+    def request(self, method: str, url: str, **kwargs: Any) -> Any:
+        """Perform HTTP request with retry logic and pool recovery.
+
+        Args:
+            method: HTTP method (GET, POST, PUT, etc.)
+            url: Request URL
+            **kwargs: Additional arguments to pass to requests.Session.request
+
+        Returns:
+            Response object
+
+        Raises:
+            SomneoInvalidURLError: When device returns 422 status
+            RequestException: When all retries are exhausted
+        """
         if self.base_url:
             full_url = urljoin(self.base_url, url)
         else:
@@ -123,7 +141,7 @@ class SomneoSession(Session):
             kwargs["timeout"] = self._timeout
 
         max_attempts = 3
-        last_exc = None
+        last_exc: Exception | None = None
         has_reset_pool = False
 
         for attempt in range(1, max_attempts + 1):
@@ -163,7 +181,6 @@ class SomneoSession(Session):
                     reset_pool
                     and attempt <= max_attempts
                     and self._use_session
-                    #and not has_reset_pool
                 ):
                     _LOGGER.info(
                         "Resetting session pool (attempt %d) for %s due to %s",
@@ -201,7 +218,13 @@ class SomneoSession(Session):
 class SomneoClient:
     """High-level client for interacting with the Philips Somneo API."""
 
-    def __init__(self, host: str, use_session: bool = True):
+    def __init__(self, host: str, use_session: bool = True) -> None:
+        """Initialize the Somneo API client.
+
+        Args:
+            host: IP address or hostname of the Somneo device
+            use_session: Whether to use persistent session for connection pooling
+        """
         urllib3.disable_warnings()
         self.host = host
         self.timeout = (5.0, 20.0)  # (connect, read) timeouts in seconds
@@ -217,8 +240,18 @@ class SomneoClient:
         path: str,
         headers: dict[str, str] | None = None,
         payload: dict[str, Any] | None = None,
-    ):
-        """Internal call to the device reusing SomneoSession"""
+    ) -> Any:
+        """Internal call to the device reusing SomneoSession.
+
+        Args:
+            method: HTTP method (GET, PUT, POST, etc.)
+            path: API endpoint path
+            headers: Optional HTTP headers
+            payload: Optional request payload
+
+        Returns:
+            JSON response as dict or parsed response
+        """
         args: dict[str, Any] = {}
         if payload:
             args["json"] = payload
@@ -236,26 +269,43 @@ class SomneoClient:
             if r is not None:
                 r.close()
 
-    def _get(self, path: str):
-        """Perform a GET request."""
+    def _get(self, path: str) -> Any:
+        """Perform a GET request.
+
+        Args:
+            path: API endpoint path
+
+        Returns:
+            JSON response
+        """
         return self._internal_call("GET", path)
 
     def put(self, path: str, payload: dict[str, Any]) -> Any:
-        """Perform a PUT request with JSON payload."""
+        """Perform a PUT request with JSON payload.
+
+        Args:
+            path: API endpoint path
+            payload: Request payload dictionary
+
+        Returns:
+            JSON response
+        """
         return self._internal_call("PUT", path, payload=payload)
 
-    def get_description_xml(self):
-        """
-        Fetch the device description XML from the Somneo device.
+    def get_description_xml(self) -> ET.Element | None:
+        """Fetch the device description XML from the Somneo device.
+
         Tries HTTPS first, then HTTP as fallback.
-        Returns raw XML content.
+
+        Returns:
+            XML root element or None if all attempts failed
         """
         urls = [
             f"https://{self.host}/upnp/description.xml",
             f"http://{self.host}/upnp/description.xml",
         ]
 
-        last_exc = None
+        last_exc: Exception | None = None
         for url in urls:
             response = None
             try:
@@ -284,7 +334,11 @@ class SomneoClient:
         return None
 
     def get_themes(self) -> dict[str, dict[str, int]]:
-        """Get available light and sound themes as a dictionary."""
+        """Get available light and sound themes as a dictionary.
+
+        Returns:
+            Dictionary containing wake_light, dusk_light, wake_sound, and dusk_sound theme mappings
+        """
 
         return {
             "wake_light": {
@@ -308,8 +362,12 @@ class SomneoClient:
             },
         }
 
-    def get_sensor_data(self):
-        """Get sensor data as a dictionary."""
+    def get_sensor_data(self) -> dict[str, Any]:
+        """Get sensor data as a dictionary.
+
+        Returns:
+            Dictionary with temperature, humidity, luminance, and noise values
+        """
         data = self._get("wusrd")
         return {
             "temperature": data.get("mstmp"),
@@ -318,62 +376,139 @@ class SomneoClient:
             "noise": data.get("mssnd"),
         }
 
-    def get_alarm_status(self):
-        """Get alarm status"""
+    def get_alarm_status(self) -> dict[str, Any]:
+        """Get alarm status.
+
+        Returns:
+            Alarm status dictionary
+        """
         return self._get("wusts")
 
-    def get_light_data(self):
-        """Get light data"""
+    def get_light_data(self) -> dict[str, Any]:
+        """Get light data.
+
+        Returns:
+            Light state dictionary
+        """
         return self._get("wulgt")
 
-    def get_sunset_data(self):
-        """Get sunset data"""
+    def get_sunset_data(self) -> dict[str, Any]:
+        """Get sunset data.
+
+        Returns:
+            Sunset settings dictionary
+        """
         return self._get("wudsk")
 
-    def get_enabled_alarms(self):
-        """Get enabled alarms"""
+    def get_enabled_alarms(self) -> dict[str, Any]:
+        """Get enabled alarms.
+
+        Returns:
+            Enabled alarms configuration dictionary
+        """
         return self._get("wualm/aenvs")
 
-    def get_time_alarms(self):
-        """Get time alarms"""
+    def get_time_alarms(self) -> dict[str, Any]:
+        """Get time alarms.
+
+        Returns:
+            Time alarm settings dictionary
+        """
         return self._get("wualm/aalms")
 
-    def get_snooze_time(self):
-        """Get snooze time"""
+    def get_snooze_time(self) -> dict[str, Any]:
+        """Get snooze time.
+
+        Returns:
+            Snooze time configuration
+        """
         return self._get("wualm")
 
-    def get_player_status(self):
-        """Get player status"""
+    def get_player_status(self) -> dict[str, Any]:
+        """Get player status.
+
+        Returns:
+            Player state dictionary
+        """
         return self._get("wuply")
 
-    def modify_light(self, payload: dict) -> dict:
-        """Set light data"""
+    def modify_light(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Set light data.
+
+        Args:
+            payload: Light settings dictionary
+
+        Returns:
+            Device response
+        """
         if (
             "wucrv" in payload
         ):  # Some Wake-ups lights don't work with wucrv, remove key if exists
             payload.pop("wucrv")
         return self.put("wulgt", payload=payload)
 
-    def modify_sunset(self, payload: dict) -> dict:
-        """Set sunset data"""
+    def modify_sunset(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Set sunset data.
+
+        Args:
+            payload: Sunset settings dictionary
+
+        Returns:
+            Device response
+        """
         return self.put("wudsk", payload=payload)
 
-    def modify_player(self, payload: dict) -> dict:
-        """Set player control data"""
+    def modify_player(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Set player control data.
+
+        Args:
+            payload: Player settings dictionary
+
+        Returns:
+            Device response
+        """
         return self.put("wuply", payload=payload)
 
-    def modify_alarm_details(self, payload: dict) -> dict:
-        """Set alarm control data"""
+    def modify_alarm_details(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Set alarm control data.
+
+        Args:
+            payload: Alarm settings dictionary
+
+        Returns:
+            Device response
+        """
         return self.put("wualm", payload=payload)
 
-    def modify_running_alarm(self, payload: dict) -> dict:
-        """Set alarm control data"""
+    def modify_running_alarm(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Set running alarm control data.
+
+        Args:
+            payload: Running alarm control dictionary
+
+        Returns:
+            Device response
+        """
         return self.put("wualm/alctr", payload=payload)
 
-    def modify_alarm_wake_up_configuration(self, payload: dict) -> dict:
-        """Set alarm wake up data"""
+    def modify_alarm_wake_up_configuration(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Set alarm wake up configuration data.
+
+        Args:
+            payload: Wake up configuration dictionary
+
+        Returns:
+            Device response
+        """
         return self.put("wualm/prfwu", payload=payload)
 
-    def modify_alarm_status(self, payload: dict) -> dict:
-        """Set alarm wake up status"""
+    def modify_alarm_status(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Set alarm status data.
+
+        Args:
+            payload: Alarm status dictionary
+
+        Returns:
+            Device response
+        """
         return self.put("wusts", payload=payload)

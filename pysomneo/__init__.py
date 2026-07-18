@@ -1,6 +1,7 @@
 """
 pysomneo - A Python library to interact with Philips Somneo devices.
 """
+from __future__ import annotations
 
 from .somneo import Somneo
 from .const import (

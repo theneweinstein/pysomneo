@@ -1,34 +1,36 @@
 """
 Utility functions for pysomneo.
 """
+from __future__ import annotations
 
 import calendar
 from datetime import time, date, timedelta, datetime
+from typing import Any
 
 from .const import DAYS, DAYS_TYPE, SOURCES
 
 
-def days_int_to_list(days_int):
+def days_int_to_list(days_int: int) -> list[str]:
     """Convert integer to list of days."""
     if days_int == 0:
         return ["tomorrow"]
     return [v for k, v in DAYS.items() if k & days_int]
 
 
-def days_list_to_int(days):
+def days_list_to_int(days: list[str] | str) -> int:
     """Convert list of days to integer."""
     return sum(k for k, v in DAYS.items() if v in days)
 
 
-def days_int_to_type(days_int):
-    """Convert integer to predefined days."""
+def days_int_to_type(days_int: int) -> str:
+    """Convert integer to predefined days type."""
     if days_int in DAYS_TYPE:
         return DAYS_TYPE[days_int]
 
     return "custom"
 
 
-def alarms_to_dict(enabled_alarms, time_alarms):
+def alarms_to_dict(enabled_alarms: dict, time_alarms: dict) -> dict[int, dict[str, Any]]:
     """Construct alarm data dictionary."""
 
     alarms = {}
@@ -59,9 +61,11 @@ def alarms_to_dict(enabled_alarms, time_alarms):
     return alarms
 
 
-def sunset_to_dict(sunset_data, light_curves, sounds):
+def sunset_to_dict(
+    sunset_data: dict, light_curves: dict, sounds: dict
+) -> dict[str, Any]:
     """Construct sunset data dictionary."""
-    data = {}
+    data: dict[str, Any] = {}
     data["is_on"] = bool(sunset_data["onoff"])
     data["duration"] = int(sunset_data["durat"])
     data["curve"] = list(light_curves.keys())[
@@ -83,9 +87,9 @@ def sunset_to_dict(sunset_data, light_curves, sounds):
     return data
 
 
-def player_to_dict(player, dusk_sound_themes):
+def player_to_dict(player: dict, dusk_sound_themes: dict) -> dict[str, Any]:
     """Construct player data dictionary."""
-    data = {}
+    data: dict[str, Any] = {}
     data["state"] = bool(player["onoff"])
     data["volume"] = (float(player["sdvol"]) - 1) / 24
 
@@ -114,10 +118,10 @@ def player_to_dict(player, dusk_sound_themes):
     return data
 
 
-def get_next_alarm(alarms):
+def get_next_alarm(alarms: dict[int, dict[str, Any]]) -> datetime | None:
     """Get the next alarm that is set."""
-    next_alarm = None
-    new_next_alarm = None
+    next_alarm: datetime | None = None
+    new_next_alarm: datetime | None = None
     for alarm in alarms:
         if alarms[alarm]["enabled"] is True:
             # Get current time and day.

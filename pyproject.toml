@@ -1,25 +1,30 @@
 [build-system]
 requires = [
     "setuptools>=61.0",
-    "requests>=2.24.0",
-    "urllib3>=1.26.5"
+    "aiohttp>=3.9.0",
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pysomneo"
-version = "5.0.6"
+version = "5.1.0"
 authors = [
   { name="Ruud van der Horst", email="pypi@mail.ruudvdhorst.nl" },
 ]
-description = "A library to communicate with the API of Philips Somneo."
+description = "An async library to communicate with the API of Philips Somneo."
 readme = "README.md"
 license = { file="LICENSE" }
-requires-python = ">=3.7"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: OS Independent",
+    "Framework :: AsyncIO",
+]
+dependencies = [
+    "aiohttp>=3.9.0",
 ]
 
 [project.urls]

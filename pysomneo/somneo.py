@@ -1,12 +1,12 @@
 """
 Main Somneo class, represents the state of the Somneo wake-up light
-and provides methods to interact with it.
+and provides async methods to interact with it.
 """
 from __future__ import annotations
 
-import time
-import logging
+import asyncio
 import datetime
+import logging
 import uuid
 from typing import Any
 
@@ -29,7 +29,6 @@ class Somneo:
     def __init__(
         self,
         host: str | None = None,
-        use_session: bool = True,
         fast_interval: int = 5,
         slow_interval: int = 60,
     ) -> None:
@@ -37,15 +36,12 @@ class Somneo:
 
         Args:
             host: IP address or hostname of the Somneo device
-            use_session: Whether to use persistent session for connection pooling
             fast_interval: Refresh interval for sensor data in seconds (default: 5)
             slow_interval: Refresh interval for other data in seconds (default: 60)
         """
         self._host = host
-        self._client = SomneoClient(host=host, use_session=use_session)
-        # The fastest refresh interval is only relevant for sensor data and is 5 seconds by default
+        self._client = SomneoClient(host=host)
         self.fast_interval = fast_interval
-        # The slowest refresh interval is relevant for all other data and is 15 minutes by default
         self.slow_interval = slow_interval
 
         self._last_sensor_fetch = 0
@@ -70,50 +66,50 @@ class Somneo:
     def wake_light_themes(self) -> dict[str, int]:
         """Get valid light curves for this light."""
         if len(self._wake_light_themes) == 0:
-            self._fetch_themes()
-            _LOGGER.debug(self._wake_light_themes)
+            _LOGGER.debug("Wake light themes not loaded yet, call connect() first")
         return self._wake_light_themes
 
     @property
     def dusk_light_themes(self) -> dict[str, int]:
         """Get valid dusk curves for this light."""
         if len(self._dusk_light_themes) == 0:
-            self._fetch_themes()
-            _LOGGER.debug(self._dusk_light_themes)
+            _LOGGER.debug("Dusk light themes not loaded yet, call connect() first")
         return self._dusk_light_themes
 
     @property
     def wake_sound_themes(self) -> dict[str, int]:
         """Get valid wake-up sounds for this light."""
         if len(self._wake_sound_themes) == 0:
-            self._fetch_themes()
-            _LOGGER.debug(self._wake_sound_themes)
+            _LOGGER.debug("Wake sound themes not loaded yet, call connect() first")
         return self._wake_sound_themes
 
     @property
     def dusk_sound_themes(self) -> dict[str, int]:
         """Get valid winddown sounds for this light."""
         if len(self._dusk_sound_themes) == 0:
-            self._fetch_themes()
-            _LOGGER.debug(self._dusk_sound_themes)
+            _LOGGER.debug("Dusk sound themes not loaded yet, call connect() first")
         return self._dusk_sound_themes
 
-    def _fetch_themes(self) -> None:
+    async def _fetch_themes(self) -> None:
         """Get themes."""
-        themes = self._client.get_themes()
-        self._wake_light_themes = themes["wake_light"]
-        self._dusk_light_themes = themes["dusk_light"]
-        self._wake_sound_themes = themes["wake_sound"]
-        self._dusk_sound_themes = themes["dusk_sound"]
-        self._fetch_sunset_data()
+        try:
+            themes = await self._client.get_themes()
+            self._wake_light_themes = themes.get("wake_light", {})
+            self._dusk_light_themes = themes.get("dusk_light", {})
+            self._wake_sound_themes = themes.get("wake_sound", {})
+            self._dusk_sound_themes = themes.get("dusk_sound", {})
+            _LOGGER.debug("Fetched themes: wake_light=%s, dusk_light=%s, wake_sound=%s, dusk_sound=%s",
+                          self._wake_light_themes, self._dusk_light_themes,
+                          self._wake_sound_themes, self._dusk_sound_themes)
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.warning("Failed to fetch themes: %s", exc)
 
-    def get_device_info(self) -> dict[str, str]:
+    async def get_device_info(self) -> dict[str, str]:
         """Get device information via SomneoClient, fallback to defaults if unavailable.
 
         Returns:
             Dictionary containing manufacturer, model, modelnumber, and serial
         """
-        # Default values if XML fetch fails
         device_info: dict[str, str] = {
             "manufacturer": "Royal Philips Electronics",
             "model": "Wake-up Light",
@@ -121,11 +117,9 @@ class Somneo:
             "serial": str(uuid.uuid1()),
         }
 
-        # Use the client to get the XML as an ElementTree root
-        root = self._client.get_description_xml()
+        root = await self._client.get_description_xml()
         if root is not None:
             try:
-                # Map XML elements to device_info
                 device_info["manufacturer"] = root[1][2].text
                 device_info["model"] = root[1][3].text
                 device_info["modelnumber"] = root[1][4].text
@@ -138,7 +132,7 @@ class Somneo:
         _LOGGER.debug("Device info: %s", device_info)
         return device_info
 
-    def fetch_data(self, force_slow_refresh: bool = False) -> dict[str, Any]:
+    async def fetch_data(self, force_slow_refresh: bool = False) -> dict[str, Any]:
         """Retrieve information from Somneo.
 
         Args:
@@ -148,21 +142,35 @@ class Somneo:
             Dictionary with all collected data
         """
         _LOGGER.debug("Calling Somneo.fetch_data()")
-        now = time.time()
+        loop = asyncio.get_running_loop()
+        now = loop.time()
 
-        # Sensor data is useful to fetch more often
         if now - self._last_sensor_fetch >= self.fast_interval:
-            self._fetch_sensor_data()
-            self._fetch_alarm_status()
+            await self._fetch_sensor_data()
+            await self._fetch_alarm_status()
             self._last_sensor_fetch = now
 
         if now - self._last_slow_fetch >= self.slow_interval or force_slow_refresh:
-            self._fetch_light_data()
-            self._fetch_sunset_data()
-            self._fetch_alarm_data()
-            self._fetch_snooze_time()
-            self._fetch_player_data()
+            await self._fetch_themes()
+            await self._fetch_light_data()
+            await self._fetch_sunset_data()
+            await self._fetch_alarm_data()
+            await self._fetch_snooze_time()
+            await self._fetch_player_data()
             self._last_slow_fetch = now
+
+        # Ensure all expected keys exist, even if empty, to prevent KeyError in platforms
+        self.data.setdefault("alarms", {})
+        self.data.setdefault("player", {})
+        self.data.setdefault("sunset", {})
+        self.data.setdefault("next_alarm", None)
+        self.data.setdefault("snooze_time", 5)
+        self.data.setdefault("light_is_on", False)
+        self.data.setdefault("light_brightness", 0)
+        self.data.setdefault("nightlight_is_on", False)
+        self.data.setdefault("somneo_status", "unknown")
+        self.data.setdefault("display_always_on", False)
+        self.data.setdefault("display_brightness", 0)
 
         return self.data
 
@@ -172,38 +180,38 @@ class Somneo:
         Args:
             sensor_data: Dictionary with temperature, humidity, luminance, and noise
         """
-        self.data["temperature"] = sensor_data["temperature"]
-        self.data["humidity"] = sensor_data["humidity"]
-        self.data["luminance"] = sensor_data["luminance"]
-        self.data["noise"] = sensor_data["noise"]
+        self.data["temperature"] = sensor_data.get("temperature")
+        self.data["humidity"] = sensor_data.get("humidity")
+        self.data["luminance"] = sensor_data.get("luminance")
+        self.data["noise"] = sensor_data.get("noise")
 
-    def _fetch_sensor_data(self) -> None:
+    async def _fetch_sensor_data(self) -> None:
         """Fetch only the sensor data from Somneo."""
-        sensor_data = self._client.get_sensor_data()
+        sensor_data = await self._client.get_sensor_data()
         _LOGGER.debug("Fetched sensor data: %s", sensor_data)
         self._update_sensor_data(sensor_data)
 
     def _update_light_data(self) -> None:
         """Update light data in data object."""
-        self.data["light_is_on"] = bool(self.light_data["onoff"])
-        self.data["light_brightness"] = int(int(self.light_data["ltlvl"]) / 25 * 255)
-        self.data["nightlight_is_on"] = bool(self.light_data["ngtlt"])
+        self.data["light_is_on"] = bool(self.light_data.get("onoff", False)) if self.light_data else False
+        self.data["light_brightness"] = int(int(self.light_data.get("ltlvl", 0)) / 25 * 255) if self.light_data else 0
+        self.data["nightlight_is_on"] = bool(self.light_data.get("ngtlt", False)) if self.light_data else False
 
-    def _fetch_light_data(self) -> None:
+    async def _fetch_light_data(self) -> None:
         """Fetch only the light data from Somneo."""
-        self.light_data = self._client.get_light_data()
+        self.light_data = await self._client.get_light_data()
         _LOGGER.debug("Fetched light data: %s", self.light_data)
         self._update_light_data()
 
     def _update_alarm_status(self) -> None:
         """Update alarm status in data object."""
-        self.data["somneo_status"] = STATUS.get(self.alarm_status["wusts"], "unknown")
-        self.data["display_always_on"] = bool(self.alarm_status["dspon"])
-        self.data["display_brightness"] = int(self.alarm_status["brght"])
+        self.data["somneo_status"] = STATUS.get(self.alarm_status.get("wusts"), "unknown") if self.alarm_status else "unknown"
+        self.data["display_always_on"] = bool(self.alarm_status.get("dspon", False)) if self.alarm_status else False
+        self.data["display_brightness"] = int(self.alarm_status.get("brght", 0)) if self.alarm_status else 0
 
-    def _fetch_alarm_status(self) -> None:
+    async def _fetch_alarm_status(self) -> None:
         """Fetch only the alarm status from Somneo."""
-        self.alarm_status = self._client.get_alarm_status()
+        self.alarm_status = await self._client.get_alarm_status()
         _LOGGER.debug("Fetched alarm status: %s", self.alarm_status)
         self._update_alarm_status()
 
@@ -213,9 +221,9 @@ class Somneo:
             self.sunset_data, self.dusk_light_themes, self.dusk_sound_themes
         )
 
-    def _fetch_sunset_data(self) -> None:
+    async def _fetch_sunset_data(self) -> None:
         """Fetch only the sunset data from Somneo."""
-        self.sunset_data = self._client.get_sunset_data()
+        self.sunset_data = await self._client.get_sunset_data()
         _LOGGER.debug("Fetched sunset data: %s", self.sunset_data)
         self._update_sunset_data()
 
@@ -224,21 +232,21 @@ class Somneo:
         self.data["alarms"] = alarms_to_dict(self.enabled_alarms, self.time_alarms)
         self.data["next_alarm"] = get_next_alarm(self.data["alarms"])
 
-    def _fetch_alarm_data(self) -> None:
+    async def _fetch_alarm_data(self) -> None:
         """Fetch only the alarm data from Somneo."""
-        self.enabled_alarms = self._client.get_enabled_alarms()
-        self.time_alarms = self._client.get_time_alarms()
+        self.enabled_alarms = await self._client.get_enabled_alarms()
+        self.time_alarms = await self._client.get_time_alarms()
         _LOGGER.debug("Fetched enabled alarms: %s", self.enabled_alarms)
         _LOGGER.debug("Fetched time alarms: %s", self.time_alarms)
         self._update_alarm_data()
 
     def _update_snooze_time(self) -> None:
         """Update snooze time in data object."""
-        self.data["snooze_time"] = self.snoozetime["snztm"]
+        self.data["snooze_time"] = self.snoozetime.get("snztm", 5) if self.snoozetime else 5
 
-    def _fetch_snooze_time(self) -> None:
+    async def _fetch_snooze_time(self) -> None:
         """Fetch only the snooze time from Somneo."""
-        self.snoozetime = self._client.get_snooze_time()
+        self.snoozetime = await self._client.get_snooze_time()
         _LOGGER.debug("Fetched snooze time: %s", self.snoozetime)
         self._update_snooze_time()
 
@@ -246,13 +254,13 @@ class Somneo:
         """Update player data in data object."""
         self.data["player"] = player_to_dict(self.player, self.dusk_sound_themes)
 
-    def _fetch_player_data(self) -> None:
+    async def _fetch_player_data(self) -> None:
         """Fetch only the player data from Somneo."""
-        self.player = self._client.get_player_status()
+        self.player = await self._client.get_player_status()
         _LOGGER.debug("Fetched player status: %s", self.player)
         self._update_player_data()
 
-    def toggle_light(self, state: bool, brightness: int | None = None) -> None:
+    async def toggle_light(self, state: bool, brightness: int | None = None) -> None:
         """Toggle the light on or off.
 
         Args:
@@ -260,7 +268,7 @@ class Somneo:
             brightness: Optional brightness level 0-255
         """
         if not self.light_data:
-            self._fetch_light_data()
+            await self._fetch_light_data()
 
         payload = dict(self.light_data)
         payload["onoff"] = state
@@ -269,60 +277,52 @@ class Somneo:
             payload["ltlvl"] = int(brightness / 255 * 25)
 
         _LOGGER.debug("PUT toggle_light payload=%s", payload)
-        response = self._client.modify_light(payload=payload)
+        response = await self._client.modify_light(payload=payload)
         _LOGGER.debug("PUT toggle_light response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_light_data()
-        self._fetch_sensor_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_light_data()
+        await self._fetch_sensor_data()
 
-    def toggle_night_light(self, state: bool) -> None:
+    async def toggle_night_light(self, state: bool) -> None:
         """Toggle the night light on or off.
 
         Args:
             state: True to turn on, False to turn off
         """
         if not self.light_data:
-            self._fetch_light_data()
+            await self._fetch_light_data()
 
         payload = dict(self.light_data)
         payload["onoff"] = False
         payload["ngtlt"] = state
 
         _LOGGER.debug("PUT toggle_night_light payload=%s", payload)
-        response = self._client.modify_light(payload=payload)
+        response = await self._client.modify_light(payload=payload)
         _LOGGER.debug("PUT toggle_night_light response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_light_data()
-        self._fetch_sensor_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_light_data()
+        await self._fetch_sensor_data()
 
-    def dismiss_alarm(self) -> None:
+    async def dismiss_alarm(self) -> None:
         """Dismiss a running alarm."""
         payload = {"disms": True}
         _LOGGER.debug("PUT dismiss_alarm payload=%s", payload)
-        response = self._client.modify_running_alarm(payload=payload)
+        response = await self._client.modify_running_alarm(payload=payload)
         _LOGGER.debug("PUT dismiss_alarm response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_data()
 
-    def snooze_alarm(self) -> None:
+    async def snooze_alarm(self) -> None:
         """Snooze a running alarm."""
         payload = {"tapsz": True}
         _LOGGER.debug("PUT snooze_alarm payload=%s", payload)
-        response = self._client.modify_running_alarm(payload=payload)
+        response = await self._client.modify_running_alarm(payload=payload)
         _LOGGER.debug("PUT snooze_alarm response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_data()
-        self._fetch_snooze_time()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_data()
+        await self._fetch_snooze_time()
 
-    def get_alarm_details(self, alarm: str) -> dict[str, Any]:
+    async def get_alarm_details(self, alarm: str) -> dict[str, Any]:
         """Get the alarm settings.
 
         Args:
@@ -332,20 +332,18 @@ class Somneo:
             Alarm details dictionary
         """
         if not self.enabled_alarms or not self.time_alarms:
-            self._fetch_alarm_data()
+            await self._fetch_alarm_data()
 
         alarm_pos = self.data["alarms"][alarm]["position"]
         payload = {"prfnr": alarm_pos}
         _LOGGER.debug("PUT get_alarm_details payload=%s", payload)
-        response = self._client.modify_alarm_details(payload=payload)
+        response = await self._client.modify_alarm_details(payload=payload)
         _LOGGER.debug("PUT get_alarm_details response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_data()
         return response
 
-    def toggle_alarm(self, alarm: str, status: bool) -> None:
+    async def toggle_alarm(self, alarm: str, status: bool) -> None:
         """Toggle the alarm on or off.
 
         Args:
@@ -353,7 +351,7 @@ class Somneo:
             status: True to enable, False to disable
         """
         if not self.enabled_alarms or not self.time_alarms:
-            self._fetch_alarm_data()
+            await self._fetch_alarm_data()
 
         payload = {
             "prfnr": self.data["alarms"][alarm]["position"],
@@ -361,16 +359,14 @@ class Somneo:
             "prfen": status,
         }
         _LOGGER.debug("PUT toggle_alarm payload=%s", payload)
-        response = self._client.modify_alarm_wake_up_configuration(payload=payload)
+        response = await self._client.modify_alarm_wake_up_configuration(payload=payload)
         _LOGGER.debug("PUT toggle_alarm response=%s", response)
 
         self.data["alarms"][alarm]["enabled"] = status
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_data()
 
-    def set_alarm(
+    async def set_alarm(
         self,
         alarm: str,
         v_time: datetime.time | None = None,
@@ -384,7 +380,7 @@ class Somneo:
             days: Days to set alarm (list of day names or single type string)
         """
         if not self.enabled_alarms or not self.time_alarms:
-            self._fetch_alarm_data()
+            await self._fetch_alarm_data()
 
         alarm_settings: dict[str, Any] = {"prfnr": self.data["alarms"][alarm]["position"]}
         if v_time is not None:
@@ -413,16 +409,14 @@ class Somneo:
             alarm_settings["pszmn"] = pw_dt.minute
 
         _LOGGER.debug("PUT set_alarm payload=%s", alarm_settings)
-        response = self._client.modify_alarm_wake_up_configuration(
+        response = await self._client.modify_alarm_wake_up_configuration(
             payload=alarm_settings
         )
         _LOGGER.debug("PUT set_alarm response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_data()
 
-    def set_alarm_light(
+    async def set_alarm_light(
         self, alarm: str, curve: str = "sunny day", level: int = 20, duration: int = 30
     ) -> None:
         """Adjust the light curve of the wake-up light.
@@ -434,30 +428,28 @@ class Somneo:
             duration: Duration in minutes (default: 30)
         """
         if not self.enabled_alarms or not self.time_alarms:
-            self._fetch_alarm_data()
-        if not self.wake_light_themes:
-            self._fetch_themes()
+            await self._fetch_alarm_data()
+        if not self._wake_light_themes:
+            await self._fetch_themes()
 
         alarm_settings: dict[str, Any] = {
             "prfnr": self.data["alarms"][alarm]["position"],
-            "ctype": self.wake_light_themes[curve],
+            "ctype": self._wake_light_themes[curve],
             "curve": level,
             "durat": duration,
         }
 
         _LOGGER.debug("PUT set_alarm_light payload=%s", alarm_settings)
-        response = self._client.modify_alarm_wake_up_configuration(
+        response = await self._client.modify_alarm_wake_up_configuration(
             payload=alarm_settings
         )
         _LOGGER.debug("PUT set_alarm_light response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_data()
-        self._fetch_light_data()
-        self._fetch_sensor_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_data()
+        await self._fetch_light_data()
+        await self._fetch_sensor_data()
 
-    def set_alarm_sound(
+    async def set_alarm_sound(
         self,
         alarm: str,
         source: str = "wake-up",
@@ -473,15 +465,15 @@ class Somneo:
             level: Sound level (default: 12)
         """
         if not self.enabled_alarms or not self.time_alarms:
-            self._fetch_alarm_data()
-        if not self.wake_sound_themes:
-            self._fetch_themes()
+            await self._fetch_alarm_data()
+        if not self._wake_sound_themes:
+            await self._fetch_themes()
 
         alarm_settings: dict[str, Any] = {
             "prfnr": self.data["alarms"][alarm]["position"],
             "snddv": SOUND_SOURCE_ALARM[source],
             "sndch": (
-                self.wake_sound_themes[channel]
+                self._wake_sound_themes[channel]
                 if source == "wake-up"
                 else (" " if source == "off" else channel)
             ),
@@ -489,18 +481,16 @@ class Somneo:
         }
 
         _LOGGER.debug("PUT set_alarm_sound payload=%s", alarm_settings)
-        response = self._client.modify_alarm_wake_up_configuration(
+        response = await self._client.modify_alarm_wake_up_configuration(
             payload=alarm_settings
         )
         _LOGGER.debug("PUT set_alarm_sound response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_data()
-        self._fetch_player_data()
-        self._fetch_sensor_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_data()
+        await self._fetch_player_data()
+        await self._fetch_sensor_data()
 
-    def set_alarm_powerwake(self, alarm: str, onoff: bool = False, delta: int = 0) -> None:
+    async def set_alarm_powerwake(self, alarm: str, onoff: bool = False, delta: int = 0) -> None:
         """Set power wake.
 
         Args:
@@ -509,7 +499,7 @@ class Somneo:
             delta: Minutes before alarm to wake display (default: 0)
         """
         if not self.enabled_alarms or not self.time_alarms:
-            self._fetch_alarm_data()
+            await self._fetch_alarm_data()
 
         alarm_datetime = datetime.datetime.strptime(
             self.data["alarms"][alarm]["time"].isoformat(), "%H:%M:%S"
@@ -527,16 +517,14 @@ class Somneo:
         self.data["alarms"][alarm]["powerwake_delta"] = delta if onoff else 0
 
         _LOGGER.debug("PUT set_alarm_powerwake payload=%s", alarm_settings)
-        response = self._client.modify_alarm_wake_up_configuration(
+        response = await self._client.modify_alarm_wake_up_configuration(
             payload=alarm_settings
         )
         _LOGGER.debug("PUT set_alarm_powerwake response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_data()
 
-    def set_snooze_time(self, snooze_time: int = 9) -> None:
+    async def set_snooze_time(self, snooze_time: int = 9) -> None:
         """Adjust the snooze time (minutes) of all alarms.
 
         Args:
@@ -544,21 +532,19 @@ class Somneo:
         """
         payload = {"snztm": snooze_time}
         _LOGGER.debug("PUT set_snooze_time payload=%s", payload)
-        response = self._client.modify_alarm_details(payload=payload)
+        response = await self._client.modify_alarm_details(payload=payload)
         _LOGGER.debug("PUT set_snooze_time response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_snooze_time()
+        await asyncio.sleep(0.1)
+        await self._fetch_snooze_time()
 
-    def add_alarm(self, alarm: str) -> None:
+    async def add_alarm(self, alarm: str) -> None:
         """Add alarm to the list.
 
         Args:
             alarm: Alarm identifier
         """
         if not self.enabled_alarms or not self.time_alarms:
-            self._fetch_alarm_data()
+            await self._fetch_alarm_data()
 
         alarm_settings: dict[str, Any] = {
             "prfnr": self.data["alarms"][alarm]["position"],
@@ -566,23 +552,21 @@ class Somneo:
         }
 
         _LOGGER.debug("PUT add_alarm payload=%s", alarm_settings)
-        response = self._client.modify_alarm_wake_up_configuration(
+        response = await self._client.modify_alarm_wake_up_configuration(
             payload=alarm_settings
         )
         _LOGGER.debug("PUT add_alarm response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_data()
 
-    def remove_alarm(self, alarm: str) -> None:
+    async def remove_alarm(self, alarm: str) -> None:
         """Remove alarm from the list.
 
         Args:
             alarm: Alarm identifier
         """
         if not self.enabled_alarms or not self.time_alarms:
-            self._fetch_alarm_data()
+            await self._fetch_alarm_data()
 
         alarm_settings: dict[str, Any] = {
             "prfnr": self.data["alarms"][alarm]["position"],
@@ -603,37 +587,33 @@ class Somneo:
         }
 
         _LOGGER.debug("PUT remove_alarm payload=%s", alarm_settings)
-        response = self._client.modify_alarm_wake_up_configuration(
+        response = await self._client.modify_alarm_wake_up_configuration(
             payload=alarm_settings
         )
         _LOGGER.debug("PUT remove_alarm response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_data()
 
-    def toggle_sunset(self, status: bool) -> None:
+    async def toggle_sunset(self, status: bool) -> None:
         """Toggle the sunset feature on or off.
 
         Args:
             status: True to enable, False to disable
         """
         if not self.sunset_data:
-            self._fetch_sunset_data()
+            await self._fetch_sunset_data()
 
         payload = {"onoff": status}
         _LOGGER.debug("PUT toggle_sunset payload=%s", payload)
-        response = self._client.modify_sunset(payload=payload)
+        response = await self._client.modify_sunset(payload=payload)
         _LOGGER.debug("PUT toggle_sunset response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_sunset_data()
-        self._fetch_player_data()
-        self._fetch_alarm_status()
-        self._fetch_sensor_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_sunset_data()
+        await self._fetch_player_data()
+        await self._fetch_alarm_status()
+        await self._fetch_sensor_data()
 
-    def set_sunset(
+    async def set_sunset(
         self,
         curve: str | None = None,
         level: int | None = None,
@@ -651,18 +631,18 @@ class Somneo:
             volume: Volume level
         """
         if (
-            not self.dusk_light_themes
-            or not self.dusk_sound_themes
+            not self._dusk_light_themes
+            or not self._dusk_sound_themes
             or not self.sunset_data
         ):
-            self._fetch_themes()
+            await self._fetch_themes()
 
         sunset_settings = dict(self.sunset_data)
 
         if duration:
             sunset_settings["durat"] = duration
         if curve:
-            sunset_settings["ctype"] = self.dusk_light_themes[curve.lower()]
+            sunset_settings["ctype"] = self._dusk_light_themes[curve.lower()]
         if level:
             sunset_settings["curve"] = level
         if sound:
@@ -671,9 +651,9 @@ class Somneo:
             elif sound.upper().startswith("FM"):
                 sunset_settings["snddv"] = "fmr"
                 sunset_settings["sndch"] = sound[3:]
-            elif sound.lower() in self.dusk_sound_themes:
+            elif sound.lower() in self._dusk_sound_themes:
                 sunset_settings["snddv"] = "dus"
-                sunset_settings["sndch"] = self.dusk_sound_themes[sound.lower()]
+                sunset_settings["sndch"] = self._dusk_sound_themes[sound.lower()]
             else:
                 _LOGGER.error("Invalid sound specified: %s", sound)
                 raise ValueError(f"Unsupported sunset sound: {sound}")
@@ -685,45 +665,40 @@ class Somneo:
                 "Sunset is already on, to modify it "
                 "we need to turn it off first otherwise changes are ignored"
             )
-            self.toggle_sunset(False)
-            time.sleep(1)  # short delay to allow the device to process
+            await self.toggle_sunset(False)
+            await asyncio.sleep(1)
 
         _LOGGER.debug("PUT set_sunset payload=%s", sunset_settings)
-        response = self._client.modify_sunset(payload=sunset_settings)
+        response = await self._client.modify_sunset(payload=sunset_settings)
         _LOGGER.debug("PUT set_sunset response=%s", response)
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        time.sleep(0.1)  # Short delay to allow the device to process
-        self._fetch_sunset_data()
-        self._fetch_player_data()
-        self._fetch_alarm_status()
-        self._fetch_sensor_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_sunset_data()
+        await self._fetch_player_data()
+        await self._fetch_alarm_status()
+        await self._fetch_sensor_data()
 
-    def toggle_player(self, state: bool) -> None:
+    async def toggle_player(self, state: bool) -> None:
         """Toggle the audio player.
 
         Args:
             state: True to turn on, False to turn off
         """
         if not self.player:
-            self._fetch_player_data()
+            await self._fetch_player_data()
 
         data = dict(self.player)
         data["onoff"] = state
 
         _LOGGER.debug("PUT toggle_player payload=%s", data)
-        response = self._client.modify_player(payload=data)
+        response = await self._client.modify_player(payload=data)
         _LOGGER.debug("PUT toggle_player response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_player_data()
-        # It might also affect the sunset state
-        self._fetch_sunset_data()
-        self._fetch_alarm_status()
-        self._fetch_sensor_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_player_data()
+        await self._fetch_sunset_data()
+        await self._fetch_alarm_status()
+        await self._fetch_sensor_data()
 
-    def set_player_volume(self, volume: float) -> None:
+    async def set_player_volume(self, volume: float) -> None:
         """Set the volume of the player (0..1).
 
         Args:
@@ -733,15 +708,13 @@ class Somneo:
 
         payload = {"sdvol": int(volume * 24 + 1)}
         _LOGGER.debug("PUT set_player_volume payload=%s", payload)
-        response = self._client.modify_player(payload=payload)
+        response = await self._client.modify_player(payload=payload)
         _LOGGER.debug("PUT set_player_volume response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_player_data()
-        self._fetch_sensor_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_player_data()
+        await self._fetch_sensor_data()
 
-    def set_player_source(self, source: str | int) -> None:
+    async def set_player_source(self, source: str | int) -> None:
         """Set the source of the player.
 
         Args:
@@ -749,9 +722,8 @@ class Somneo:
                     or one of the dusk sound theme names
         """
         if not self.player:
-            self._fetch_player_data()
+            await self._fetch_player_data()
 
-        # Support legacy int sources (1..5 = FM presets)
         if isinstance(source, int):
             if source in range(1, 6):
                 source = f"FM {source}"
@@ -770,9 +742,9 @@ class Somneo:
         elif source.upper().startswith("FM "):
             snddv = "fmr"
             sndch = source.split(" ")[1]
-        elif source.lower() in self.dusk_sound_themes:
+        elif source.lower() in self._dusk_sound_themes:
             snddv = "dus"
-            sndch = self.dusk_sound_themes[source.lower()]
+            sndch = self._dusk_sound_themes[source.lower()]
         else:
             _LOGGER.error("Invalid source specified: %s", source)
             raise ValueError(f"Unsupported player source: {source}")
@@ -786,7 +758,7 @@ class Somneo:
         }
 
         _LOGGER.debug("PUT set_player_source payload=%s", payload)
-        response = self._client.modify_player(payload=payload)
+        response = await self._client.modify_player(payload=payload)
         _LOGGER.debug("PUT set_player_source response=%s", response)
 
         if bool(sunset_settings["onoff"]) and previous_sndch != sndch:
@@ -794,18 +766,15 @@ class Somneo:
                 "Sunset is already on and we modified the sound, "
                 "to apply these we need to modify sunset endpoint"
             )
-            self.set_sunset(sound=source)
+            await self.set_sunset(sound=source)
 
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_player_data()
-        # It might also affect the sunset state
-        self._fetch_sunset_data()
-        self._fetch_alarm_status()
-        self._fetch_sensor_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_player_data()
+        await self._fetch_sunset_data()
+        await self._fetch_alarm_status()
+        await self._fetch_sensor_data()
 
-    def set_display(
+    async def set_display(
         self, state: bool | None = None, brightness: int | None = None
     ) -> None:
         """Adjust the display.
@@ -815,7 +784,7 @@ class Somneo:
             brightness: Display brightness level (0-255)
         """
         if not self.alarm_status:
-            self._fetch_alarm_status()
+            await self._fetch_alarm_status()
 
         payload = {
             "dspon": state if state is not None else self.data["display_always_on"],
@@ -827,10 +796,8 @@ class Somneo:
         }
 
         _LOGGER.debug("PUT set_display payload=%s", payload)
-        response = self._client.modify_alarm_status(payload=payload)
+        response = await self._client.modify_alarm_status(payload=payload)
         _LOGGER.debug("PUT set_display response=%s", response)
-        time.sleep(0.1)  # Short delay to allow the device to process
-        # The response of the put command is incomplete, so sent a new request
-        # before updating internal state
-        self._fetch_alarm_status()
-        self._fetch_sensor_data()
+        await asyncio.sleep(0.1)
+        await self._fetch_alarm_status()
+        await self._fetch_sensor_data()

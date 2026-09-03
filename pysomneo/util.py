@@ -35,6 +35,7 @@ def alarms_to_dict(enabled_alarms: dict, time_alarms: dict) -> dict[int, dict[st
 
     alarms: dict[int, dict[str, Any]] = {}
     prfen = enabled_alarms.get("prfen", [])
+    prfvs = enabled_alarms.get("prfvs", [])
     almhr = time_alarms.get("almhr", [])
     almmn = time_alarms.get("almmn", [])
     daynm = time_alarms.get("daynm", [])
@@ -46,6 +47,7 @@ def alarms_to_dict(enabled_alarms: dict, time_alarms: dict) -> dict[int, dict[st
         alarms[alarm]["position"] = alarm + 1
         alarms[alarm]["name"] = "alarm" + str(alarm)
         alarms[alarm]["enabled"] = bool(enabled)
+        alarms[alarm]["visible"] = bool(prfvs[alarm]) if alarm < len(prfvs) else True
         alarms[alarm]["time"] = time(
             int(almhr[alarm]) if alarm < len(almhr) else 0,
             int(almmn[alarm]) if alarm < len(almmn) else 0,

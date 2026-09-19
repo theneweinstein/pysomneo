@@ -74,7 +74,7 @@ class SomneoSession:
             An active aiohttp.ClientSession
         """
         if self._session is None or self._session.closed:
-            connector = aiohttp.TCPConnector(ssl=False)  # Self-signed certs
+            connector = aiohttp.TCPConnector(ssl=False, limit=1)  # Self-signed certs; one connection at a time
             self._session = aiohttp.ClientSession(
                 timeout=self._timeout,
                 connector=connector,

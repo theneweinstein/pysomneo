@@ -781,7 +781,7 @@ class Somneo:
 
         Args:
             state: Display always on (True/False)
-            brightness: Display brightness level (0-255)
+            brightness: Display brightness level (1-6)
         """
         if not self.alarm_status:
             await self._fetch_alarm_status()
